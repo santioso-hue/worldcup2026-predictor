@@ -1,0 +1,97 @@
+# =============================================================================
+# config.yaml — ÚNICA fuente de hiperparámetros, rutas, seed y modo.
+# Ningún número mágico vive en el código de modelo: todo va aquí (PROJECT.md §9).
+# Los valores marcados [ref:Hicruben] son defaults razonables tomados de la
+# referencia principal y VERIFICADOS contra su repo; son ajustables (tunables en
+# Fase 2/5), no constantes inmutables.
+# =============================================================================
+
+project:
+  name: worldcup2026-predictor
+  seed: 42                 # semilla global -> worldcup.rng.get_rng(seed)
+  mode: live               # live (DEFAULT) | pre_tournament
+
+paths:
+  data_raw: data/raw               # INMUTABLE (snapshots + SOURCES.md)
+  data_interim: data/interim       # limpio
+  data_processed: data/processed   # features listos
+  figures: outputs/figures
+  videos: outputs/videos
+
+# ---------------------------------------------------------------------------
+# Datos. Todas las fuentes live se acceden tras LiveResultsProvider.
+# Esquemas VERIFICADOS el 16 jun 2026 (ver data/raw/SOURCES.md).
+# ---------------------------------------------------------------------------
+data:
+  historical:               # base de Elo + backtest
+    source: martj42/international_results
+    results_url: https://raw.githubusercontent.com/martj42/international_results/master/results.csv
+    shootouts_url: https://raw.githubusercontent.com/martj42/international_results/master/shootouts.csv
+  schedule:                 # backbone de fixtures 2026
+    source: openfootball/worldcup.json
+    url: https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json
+  live:
+    provider: api_football  # primario
+    base_url: https://v3.football.api-sports.io
+    league_id: 1            # World Cup (verificado API-Football v3)
+    season: 2026
+    api_key_env: API_FOOTBALL_KEY    # la KEY va en .env, NUNCA en este archivo
+    poll_interval_seconds: 900       # 15 min: ~48 req/día (cómodo bajo 100)
+    daily_request_budget: 100        # tier free
+    fallback:               # solo resultados FINALIZADOS
+      # NOTA: el mapa de estados (FOOTBALLDATA_STATUS) ya existe, pero el cliente
+      # FootballDataProvider aún NO está implementado (pendiente Fase 1.x). Hasta
+      # entonces este bloque documenta la decisión, no una ruta activa.
+      provider: football_data
+      base_url: https://api.football-data.org/v4
+      competition_code: WC
+      token_env: FOOTBALL_DATA_TOKEN
+  snapshots:
+    dir: data/raw
+    filename_pattern: "results_{ts}.parquet"   # ts = YYYYMMDDtHHMM
+    latest_pointer: latest.txt                 # apunta al snapshot más reciente
+
+# ---------------------------------------------------------------------------
+# Elo dinámico (features/elo.py). Detalles del factor k por margen de goles
+# se definen en Fase 2 (decisión de modelado a confirmar contigo).
+# ---------------------------------------------------------------------------
+elo:
+  initial_rating: 1500.0          # rating base para equipos sin historia
+  home_advantage: 75.0            # bono Elo de localía         [ref:Hicruben]
+  host_advantage: 37.5            # bono de sede (Mundial)      [ref:Hicruben]
+  recency_half_life_months: 18.0  # vida media del peso temporal [ref:Hicruben]
+  base_lambda: 1.35               # goles esperados a diff Elo 0 [ref:Hicruben]
+  elo_per_goal_denominator: 400.0 # +1 gol esperado por 400 Elo  [ref:Hicruben]
+  lambda_min: 0.3                 # clip inferior de goles esp.  [ref:Hicruben]
+  lambda_max: 3.5                 # clip superior de goles esp.  [ref:Hicruben]
+  k_factors:                      # importancia del partido      [ref:Hicruben]
+    world_cup: 55.0
+    continental: 50.0             # Euro, Copa América, etc.
+    world_cup_qualifier: 40.0
+    nations_league: 32.0
+    default: 28.0
+    friendly: 18.0
+  goal_margin:                    # multiplicador por margen (eloratings.net)
+    two_goal: 1.5                 # |d| == 2
+    offset: 11.0                  # |d| >= 3 -> (offset + |d|) / divisor
+    divisor: 8.0
+
+# ---------------------------------------------------------------------------
+# Dixon-Coles (models/dixon_coles.py): corrección de marcadores bajos.
+# ---------------------------------------------------------------------------
+dixon_coles:
+  rho: -0.13      # dependencia low-score (0-0,1-0,0-1,1-1)  [ref:Hicruben]
+  max_goals: 8    # tope de la matriz de marcadores
+
+# ---------------------------------------------------------------------------
+# Monte Carlo condicional (simulation/tournament.py).
+# ---------------------------------------------------------------------------
+simulation:
+  runs: 50000                 # nº de torneos simulados
+  extra_time_total_goals: 0.8 # goles esperados totales en prórroga [ref:Currybon30]
+
+# ---------------------------------------------------------------------------
+# Evaluación (evaluation/backtest.py + calibration.py).
+# ---------------------------------------------------------------------------
+evaluation:
+  burn_in_matches: 150   # partidos de calentamiento antes de evaluar [ref:Hicruben]

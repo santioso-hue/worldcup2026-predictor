@@ -1,0 +1,76 @@
+Metadata-Version: 2.4
+Name: worldcup2026-predictor
+Version: 0.1.0
+Summary: Live-updating FIFA World Cup 2026 predictor (Elo -> Dixon-Coles -> conditional Monte Carlo).
+License: MIT
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: numpy>=1.26
+Requires-Dist: pandas>=2.1
+Requires-Dist: pyarrow>=14
+Requires-Dist: scipy>=1.11
+Requires-Dist: scikit-learn>=1.3
+Requires-Dist: pydantic>=2.5
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: typer>=0.9
+Requires-Dist: requests>=2.31
+Requires-Dist: matplotlib>=3.8
+Requires-Dist: plotly>=5.18
+Requires-Dist: streamlit>=1.30
+Provides-Extra: ml
+Requires-Dist: xgboost>=2.0; extra == "ml"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4; extra == "dev"
+Requires-Dist: ruff>=0.1.9; extra == "dev"
+Requires-Dist: black>=23.12; extra == "dev"
+Requires-Dist: mypy>=1.8; extra == "dev"
+Requires-Dist: pre-commit>=3.6; extra == "dev"
+Requires-Dist: types-requests; extra == "dev"
+Requires-Dist: types-PyYAML; extra == "dev"
+Requires-Dist: pandas-stubs; extra == "dev"
+
+# worldcup2026-predictor
+
+Predictor **live-updating** del Mundial FIFA 2026 (48 equipos, 12 grupos). Recondiciona
+las probabilidades con resultados reales conforme ocurren y produce visuales para
+YouTube Shorts / Reels. Modelo: **Elo dinámico → Dixon-Coles → Monte Carlo condicional**.
+
+> Contexto completo y reglas: [`PROJECT.md`](PROJECT.md). Fuentes de datos: [`SOURCES.md`](data/raw/SOURCES.md).
+
+## Quickstart
+
+```bash
+make setup                       # crea .venv e instala deps
+cp .env.example .env             # añade tu API_FOOTBALL_KEY
+make run                         # pipeline live completo
+make test && make lint           # calidad
+```
+
+Reproducibilidad: dado **el mismo snapshot + semilla**, la salida es idéntica. Para
+grabar un video sin que cambie, fija un snapshot:
+
+```bash
+python scripts/run_pipeline.py --snapshot 20260616t1830 --runs 50000
+```
+
+## Estado de construcción
+
+- [x] **Fase 0** — Andamiaje: `pyproject.toml`, `Makefile`, `config/config.yaml`,
+  `.env.example`, `src/worldcup/{config.py,rng.py}`, CI, pre-commit.
+- [x] **Fase 1** — Datos + LIVE: interfaz `LiveResultsProvider` + esquema normalizado,
+  cliente `APIFootballProvider`, `schedule.py` (backbone openfootball + `validate_schedule`),
+  snapshotting con timestamp (`download.py`), `clean.py` (validación + reconciliación),
+  `triggers.py` (`WatchTrigger`/`CronTrigger`). Pendiente: cliente `FootballDataProvider`
+  (fallback) y fetch del histórico martj42 (se hará junto al Elo).
+- [x] **Fase 2** — Elo dinámico: `data/historical.py` (fetch + parse martj42),
+  `features/elo.py` (expectativa logística, multiplicador de margen eloratings.net,
+  recencia 18m, clasificación de importancia, `fit_elo` secuencial determinista).
+  Diseño en `docs/specs/2026-06-16-elo-design.md`.
+- [ ] Fases 3–8 — Dixon-Coles, simulación condicional, evaluación, viz, CLI,
+  dashboard, notebook. Ver el plan en `PROJECT.md`.
+
+## Arquitectura
+
+Separación estricta de capas (`data` → `features` → `models` → `simulation` →
+`evaluation` → `viz`); dependencias en una sola dirección. Toda la aleatoriedad pasa
+por `worldcup.rng.get_rng()`. Ver el árbol completo en `PROJECT.md §4`.

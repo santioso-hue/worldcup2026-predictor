@@ -1,0 +1,27 @@
+# Entornos / cachés
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Secretos: NUNCA commitear la API key (PROJECT.md §10)
+.env
+
+# Datos derivados (regenerables). data/raw/ SÍ se versiona: es el registro
+# reproducible de "qué sabía el modelo y cuándo".
+data/interim/*
+data/processed/*
+!data/interim/.gitkeep
+!data/processed/.gitkeep
+
+# Outputs: versionar solo los "finales" a mano; el resto se ignora.
+outputs/figures/*
+outputs/videos/*
+!outputs/figures/.gitkeep
+!outputs/videos/.gitkeep
+
+# OS
+.DS_Store
