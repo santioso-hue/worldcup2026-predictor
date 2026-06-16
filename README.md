@@ -35,8 +35,12 @@ python scripts/run_pipeline.py --snapshot 20260616t1830 --runs 50000
   `features/elo.py` (expectativa logística, multiplicador de margen eloratings.net,
   recencia 18m, clasificación de importancia, `fit_elo` secuencial determinista).
   Diseño en `docs/specs/2026-06-16-elo-design.md`.
-- [ ] Fases 3–8 — Dixon-Coles, simulación condicional, evaluación, viz, CLI,
-  dashboard, notebook. Ver el plan en `PROJECT.md`.
+- [x] **Fase 3** — Dixon-Coles: `models/base.py` (interfaz `MatchModel`, `MatchOutcome`,
+  `outcome_probabilities`, `sample_scoreline`) + `models/dixon_coles.py` (Elo→goles
+  simétrico, matriz Poisson 9×9, corrección τ de marcador bajo, normalizada).
+  Diseño en `docs/specs/2026-06-16-dixon-coles-design.md`.
+- [ ] Fases 4–8 — simulación condicional, evaluación, viz, CLI, dashboard, notebook.
+  Ver el plan en `PROJECT.md`.
 
 ## Arquitectura
 
