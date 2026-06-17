@@ -59,6 +59,18 @@ def _stats(
     return {t: (pts[t], gd[t], gf[t]) for t in subset}
 
 
+def _require_elo(teams: list[str], elo_ratings: dict[str, float]) -> None:
+    """Falla ruidosamente si el Elo (proxy del desempate final) no cubre algún equipo.
+
+    El Elo es el desempate determinista final (Art. 13 Step 3); un equipo ausente sería
+    un bug de cableado del caller. Validamos up-front para fallar igual sin importar el
+    marcador, en vez de solo cuando se alcanza la rama de desempate.
+    """
+    missing = sorted({t for t in teams if t not in elo_ratings})
+    if missing:
+        raise ValueError(f"elo_ratings no cubre a los equipos: {missing}")
+
+
 def _bucket(items: list[str], key: Callable[[str], object]) -> list[list[str]]:
     """Ordena descendente por ``key`` y agrupa elementos con la misma clave."""
     ordered = sorted(items, key=key, reverse=True)  # type: ignore[arg-type]
@@ -90,6 +102,7 @@ def standings(
     list[TeamStanding]
         Equipos en orden de clasificación, con su registro global.
     """
+    _require_elo(teams, elo_ratings)
     overall = _stats(matches, teams)
 
     def rank_tied(subset: list[str]) -> list[str]:
@@ -123,6 +136,7 @@ def rank_thirds(
 
     El proxy Elo cubre el paso final (ranking FIFA); el conduct score se omite.
     """
+    _require_elo([s.team for s in thirds], elo_ratings)
     return sorted(
         thirds,
         key=lambda s: (s.points, s.goal_diff, s.goals_for, elo_ratings[s.team]),

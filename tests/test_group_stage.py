@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from worldcup.simulation.group_stage import (
     PlayedMatch,
     TeamStanding,
@@ -85,6 +87,26 @@ def test_standings_returns_overall_records() -> None:
     ]
     top = standings(matches, list("ABCD"), EQUAL_ELO)[0]
     assert top == TeamStanding(team="A", points=9, goal_diff=4, goals_for=4)
+
+
+def test_standings_fails_loud_when_elo_missing_a_team() -> None:
+    # Sin empates (resultado claro): aun así falla up-front, no según el marcador.
+    matches = [
+        PlayedMatch("A", "B", 3, 0),
+        PlayedMatch("A", "C", 3, 0),
+        PlayedMatch("A", "D", 3, 0),
+        PlayedMatch("B", "C", 1, 0),
+        PlayedMatch("B", "D", 1, 0),
+        PlayedMatch("C", "D", 1, 0),
+    ]
+    with pytest.raises(ValueError, match="D"):
+        standings(matches, list("ABCD"), {"A": 1500.0, "B": 1500.0, "C": 1500.0})
+
+
+def test_rank_thirds_fails_loud_when_elo_missing_a_team() -> None:
+    thirds = [TeamStanding("P", 3, 0, 2), TeamStanding("Q", 3, 0, 2)]
+    with pytest.raises(ValueError, match="Q"):
+        rank_thirds(thirds, {"P": 1500.0})
 
 
 def test_rank_thirds_orders_by_points_gd_gf_then_elo() -> None:

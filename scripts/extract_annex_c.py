@@ -40,22 +40,42 @@ ELIGIBLE = {
 _ROW_RE = re.compile(r"\b(\d{1,3})\s+" + r"\s+".join([r"3([A-L])"] * 8))
 
 
-def extract(pdf_path: Path) -> dict[str, dict[str, str]]:
-    """Devuelve ``{combinación_ordenada: {ganador: grupo}}`` (495 entradas)."""
+# Ancla: la fila 1 oficial de Annex C (3E 3J 3I 3F 3H 3G 3L 3K) en orden WINNERS.
+# Detecta un column-scramble que respete la elegibilidad (que las invariantes
+# estructurales NO detectarían — hay muchas asignaciones elegibles por combinación).
+ANCHOR_ROW_1 = ["E", "J", "I", "F", "H", "G", "L", "K"]
+
+
+def extract_rows(pdf_path: Path) -> dict[int, list[str]]:
+    """Extrae ``{rank: [8 terceros en orden WINNERS]}`` del PDF."""
     from pypdf import PdfReader
 
     text = "\n".join((pg.extract_text() or "") for pg in PdfReader(str(pdf_path)).pages)
     rows: dict[int, list[str]] = {}
     for m in _ROW_RE.finditer(text):
         rows[int(m.group(1))] = [m.group(i) for i in range(2, 10)]
+    return rows
+
+
+def build_table(rows: dict[int, list[str]]) -> dict[str, dict[str, str]]:
+    """Construye ``{combinación_ordenada: {ganador: grupo}}`` desde las filas."""
     return {
         "".join(sorted(g)): dict(zip(WINNERS, g, strict=True)) for g in rows.values()
     }
 
 
-def verify(table: dict[str, dict[str, str]]) -> list[str]:
-    """Devuelve la lista de problemas (vacía si la tabla es completa y consistente)."""
+def verify(rows: dict[int, list[str]], table: dict[str, dict[str, str]]) -> list[str]:
+    """Devuelve la lista de problemas (vacía si la extracción es correcta).
+
+    Comprueba ranks 1..495 contiguos (detecta filas duplicadas/perdidas aunque la
+    cobertura cuadre por casualidad), el ancla de la fila 1, y las invariantes
+    estructurales (cobertura, biyección, elegibilidad).
+    """
     issues: list[str] = []
+    if set(rows) != set(range(1, 496)):
+        issues.append("los ranks no son 1..495 contiguos")
+    if rows.get(1) != ANCHOR_ROW_1:
+        issues.append(f"fila 1 {rows.get(1)} != ancla oficial {ANCHOR_ROW_1}")
     if len(table) != 495:
         issues.append(f"{len(table)} entradas != 495")
     expected = {"".join(c) for c in combinations("ABCDEFGHIJKL", 8)}
@@ -77,8 +97,9 @@ def main(argv: list[str]) -> int:
         print(__doc__)
         return 2
     pdf_path, out_path = Path(argv[1]), Path(argv[2])
-    table = extract(pdf_path)
-    issues = verify(table)
+    rows = extract_rows(pdf_path)
+    table = build_table(rows)
+    issues = verify(rows, table)
     if issues:
         print(f"FALLÓ la verificación ({len(issues)} problemas):")
         for msg in issues[:10]:
