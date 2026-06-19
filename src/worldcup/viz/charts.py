@@ -1,16 +1,22 @@
 """Gráficos: preparación de datos (pura, testeable) + render matplotlib (fino).
 
 Cada figura separa ``prepare_*`` (datos → estructura lista para plotear; puro, sin
-matplotlib) de ``render_*`` (dibuja la ``Figure``). Aquí viven los ``prepare_*``; los
-``render_*`` se añaden con sus smoke-tests. Toda la marca vive en ``theme.py``.
-Orden de resultados 1X2: local, empate, visita.
+matplotlib) de ``render_*`` (dibuja la ``Figure``; matplotlib en import perezoso, sin
+pyplot). Toda la marca vive en ``theme.py``. Orden 1X2: local, empate, visita.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
+
+from .theme import LANDSCAPE, PORTRAIT, THEME, ExportSpec, Theme
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
 
 
 @dataclass(frozen=True)
@@ -129,3 +135,158 @@ def prepare_reliability(bins: list[tuple[float, float, int]]) -> ReliabilityData
         observed=[b[1] for b in bins],
         counts=[b[2] for b in bins],
     )
+
+
+# --- render: matplotlib (import perezoso, API orientada a objetos, sin pyplot) ---
+
+_DELTA_GLYPH = {"up": "▲", "down": "▼", "flat": ""}
+
+
+def _new_figure(spec: ExportSpec, theme: Theme) -> tuple[Figure, Axes]:
+    """Figure headless del tamaño del spec, con fondo de marca (sin estado global)."""
+    from matplotlib.figure import Figure
+
+    fig = Figure(
+        figsize=(spec.width_px / spec.dpi, spec.height_px / spec.dpi), dpi=spec.dpi
+    )
+    fig.patch.set_facecolor(theme.background)
+    ax = fig.subplots()
+    ax.set_facecolor(theme.background)
+    return fig, ax
+
+
+def _strip_chrome(ax: Axes) -> None:
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+    ax.tick_params(length=0)
+
+
+def render_champion_ranking(
+    rows: list[RankingRow],
+    *,
+    theme: Theme = THEME,
+    spec: ExportSpec = PORTRAIT,
+    title: str = "Probabilidad de campeón",
+    stamp: str | None = None,
+) -> Figure:
+    """Barras horizontales de P(título), rank 1 arriba, con valor y flecha de delta."""
+    fig, ax = _new_figure(spec, theme)
+    positions = list(range(len(rows)))
+    ax.barh(positions, [r.prob * 100 for r in rows], color=theme.accent)
+    ax.set_yticks(positions)
+    ax.set_yticklabels([r.team for r in rows], color=theme.text_primary)
+    ax.invert_yaxis()  # rank 1 arriba
+    color_by_delta = {"up": theme.up, "down": theme.down, "flat": theme.text_primary}
+    for pos, row in zip(positions, rows, strict=True):
+        ax.text(
+            row.prob * 100,
+            pos,
+            f"  {row.prob * 100:.1f}% {_DELTA_GLYPH[row.delta]}",
+            va="center",
+            color=color_by_delta[row.delta],
+            fontsize=theme.value_size,
+        )
+    ax.set_title(title, color=theme.text_primary, fontsize=theme.title_size, pad=20)
+    largest = max((r.prob * 100 for r in rows), default=1.0)
+    ax.set_xlim(0, largest * 1.18)
+    ax.set_xticks([])
+    _strip_chrome(ax)
+    if stamp is not None:
+        fig.text(
+            0.5,
+            0.02,
+            stamp,
+            ha="center",
+            color=theme.text_muted,
+            fontsize=theme.stamp_size,
+        )
+    return fig
+
+
+def render_match_bar(
+    segments: list[BarSegment],
+    *,
+    theme: Theme = THEME,
+    spec: ExportSpec = LANDSCAPE,
+    title: str | None = None,
+) -> Figure:
+    """Barra 1X2 apilada con el porcentaje rotulado en cada segmento."""
+    fig, ax = _new_figure(spec, theme)
+    color_by_role = {"home": theme.accent, "draw": theme.draw, "away": theme.away}
+    left = 0.0
+    for seg in segments:
+        ax.barh([0], [seg.value], left=left, color=color_by_role[seg.role])
+        ax.text(
+            left + seg.value / 2,
+            0,
+            f"{seg.value * 100:.0f}%",
+            ha="center",
+            va="center",
+            color=theme.background,
+            fontsize=theme.value_size,
+        )
+        left += seg.value
+    ax.set_xlim(0, 1)
+    ax.set_ylim(-0.5, 0.5)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    if title is not None:
+        ax.set_title(title, color=theme.text_primary, fontsize=theme.title_size, pad=16)
+    _strip_chrome(ax)
+    return fig
+
+
+def render_score_heatmap(
+    data: HeatmapData,
+    *,
+    theme: Theme = THEME,
+    spec: ExportSpec = LANDSCAPE,
+    title: str | None = "Marcadores más probables",
+) -> Figure:
+    """Heatmap de la matriz de marcadores con la celda modal resaltada."""
+    from matplotlib.colors import LinearSegmentedColormap
+    from matplotlib.patches import Rectangle
+
+    fig, ax = _new_figure(spec, theme)
+    cmap = LinearSegmentedColormap.from_list("heat", [theme.background, theme.heat])
+    ax.imshow(data.grid, cmap=cmap, origin="upper")
+    mode_row, mode_col = data.mode
+    ax.add_patch(
+        Rectangle(
+            (mode_col - 0.5, mode_row - 0.5),
+            1,
+            1,
+            fill=False,
+            edgecolor=theme.text_primary,
+            linewidth=2,
+        )
+    )
+    ax.set_xlabel("Goles visita", color=theme.text_primary)
+    ax.set_ylabel("Goles local", color=theme.text_primary)
+    ax.set_xticks(range(data.grid.shape[1]))
+    ax.set_yticks(range(data.grid.shape[0]))
+    ax.tick_params(colors=theme.text_primary)
+    if title is not None:
+        ax.set_title(title, color=theme.text_primary, fontsize=theme.title_size, pad=16)
+    return fig
+
+
+def render_reliability(
+    data: ReliabilityData,
+    *,
+    theme: Theme = THEME,
+    spec: ExportSpec = LANDSCAPE,
+    title: str | None = "Calibración (fiabilidad)",
+) -> Figure:
+    """Curva de fiabilidad: puntos predicho-vs-observado sobre la diagonal ideal."""
+    fig, ax = _new_figure(spec, theme)
+    ax.plot([0, 1], [0, 1], linestyle="--", color=theme.text_muted)
+    ax.scatter(data.pred, data.observed, color=theme.accent)
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.set_xlabel("Probabilidad predicha", color=theme.text_primary)
+    ax.set_ylabel("Frecuencia observada", color=theme.text_primary)
+    ax.tick_params(colors=theme.text_primary)
+    if title is not None:
+        ax.set_title(title, color=theme.text_primary, fontsize=theme.title_size, pad=16)
+    return fig

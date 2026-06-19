@@ -10,6 +10,10 @@ from worldcup.viz.charts import (
     prepare_match_bar,
     prepare_reliability,
     prepare_score_heatmap,
+    render_champion_ranking,
+    render_match_bar,
+    render_reliability,
+    render_score_heatmap,
 )
 
 
@@ -67,3 +71,32 @@ def test_reliability_passthrough_and_empty() -> None:
     assert data.counts == [50, 40]
     with pytest.raises(ValueError):
         prepare_reliability([])
+
+
+def test_render_champion_ranking_smoke() -> None:
+    rows = prepare_champion_ranking({"A": 0.5, "B": 0.3, "C": 0.2})
+    fig = render_champion_ranking(rows, stamp="actualizado hoy")
+    ax = fig.axes[0]
+    assert len(ax.patches) == 3  # una barra por equipo
+    assert ax.get_title() == "Probabilidad de campeón"
+
+
+def test_render_match_bar_smoke() -> None:
+    segments = prepare_match_bar("Brasil", "Francia", 0.46, 0.27, 0.27)
+    fig = render_match_bar(segments)
+    assert len(fig.axes[0].patches) == 3  # tres segmentos 1X2
+
+
+def test_render_score_heatmap_smoke() -> None:
+    matrix = np.zeros((6, 6))
+    matrix[1, 1] = 0.6
+    matrix[2, 1] = 0.4
+    fig = render_score_heatmap(prepare_score_heatmap(matrix))
+    assert len(fig.axes[0].images) == 1
+
+
+def test_render_reliability_smoke() -> None:
+    fig = render_reliability(prepare_reliability([(0.2, 0.18, 50), (0.8, 0.83, 40)]))
+    ax = fig.axes[0]
+    assert len(ax.lines) >= 1  # diagonal ideal
+    assert len(ax.collections) >= 1  # scatter de puntos
