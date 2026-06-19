@@ -34,13 +34,25 @@ class TournamentState:
 
 
 def _winner_of(match: NormalizedMatch) -> str:
-    """Ganador de un FINISHED, por fase: penales > prórroga > 90'."""
-    assert match.ft_home is not None and match.ft_away is not None
-    if match.pen_home is not None and match.pen_away is not None:
-        return match.home_team if match.pen_home > match.pen_away else match.away_team
-    if match.et_home is not None and match.et_away is not None:
-        return match.home_team if match.et_home > match.et_away else match.away_team
-    return match.home_team if match.ft_home > match.ft_away else match.away_team
+    """Ganador de un KO FINISHED por fase (penales > prórroga > 90').
+
+    Falla ruidosamente si no hay un ganador claro (fase incompleta, o un KO "finalizado"
+    empatado sin resolución) en vez de fabricar uno. ``build_state`` asume fixtures ya
+    reconciliados (``clean.reconcile`` descarta lo sospechoso antes de llegar aquí).
+    """
+    phases = (
+        (match.pen_home, match.pen_away),
+        (match.et_home, match.et_away),
+        (match.ft_home, match.ft_away),
+    )
+    for home_score, away_score in phases:
+        if home_score is None and away_score is None:
+            continue  # fase no disputada
+        if home_score is None or away_score is None:
+            raise ValueError(f"fase incompleta en el partido {match.match_id!r}")
+        if home_score != away_score:
+            return match.home_team if home_score > away_score else match.away_team
+    raise ValueError(f"eliminatoria finalizada sin ganador en {match.match_id!r}")
 
 
 def build_state(

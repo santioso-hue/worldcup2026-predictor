@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from itertools import combinations
 from pathlib import Path
 
+import pytest
+
 from worldcup.config import load_config
 from worldcup.data.live_results import MatchStatus, NormalizedMatch
 from worldcup.models.dixon_coles import DixonColesModel
@@ -102,6 +104,30 @@ def test_winner_of_uses_phase_priority() -> None:
     assert _winner_of(reg) == "H"
     assert _winner_of(et) == "H"
     assert _winner_of(pen) == "H"
+
+
+def test_winner_of_raises_on_unresolved_knockout() -> None:
+    # KO "finalizado" empatado a 90' sin prórroga/penales (dato corrupto) -> fail loud.
+    drawn = _nm("X", "Y", "Round of 16", MatchStatus.FINISHED, ft_home=1, ft_away=1)
+    with pytest.raises(ValueError):
+        _winner_of(drawn)
+
+
+def test_winner_of_raises_on_incomplete_phase() -> None:
+    # Penales con un solo lado (dato parcial) -> no fabricar ganador, fallar.
+    partial = _nm(
+        "X",
+        "Y",
+        "Final",
+        MatchStatus.FINISHED,
+        ft_home=1,
+        ft_away=1,
+        et_home=1,
+        et_away=1,
+        pen_home=5,
+    )
+    with pytest.raises(ValueError):
+        _winner_of(partial)
 
 
 def test_run_from_state_end_to_end() -> None:

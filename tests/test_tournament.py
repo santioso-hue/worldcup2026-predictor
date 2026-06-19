@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from worldcup.config import load_config
 from worldcup.models.dixon_coles import DixonColesModel
 from worldcup.simulation.bracket import load_annex_c
@@ -49,6 +51,22 @@ def test_strongest_team_is_most_likely_champion() -> None:
     champ = {t: probs[t]["champion"] for t in ALL_TEAMS}
     assert max(champ, key=champ.get) == "A1"
     assert champ["A1"] > 0.25
+
+
+def test_rejects_malformed_groups() -> None:
+    # 11 grupos en vez de 12 -> error claro up-front (no KeyError opaco luego).
+    bad = {g: [f"{g}{i}" for i in range(1, 5)] for g in "ABCDEFGHIJK"}
+    ratings = {t: 1500.0 for teams in bad.values() for t in teams}
+    with pytest.raises(ValueError, match="12 grupos"):
+        run_tournament(bad, ratings, MODEL, ANNEX, runs=10, seed=1)
+
+
+def test_rejects_group_with_wrong_team_count() -> None:
+    bad = {g: [f"{g}{i}" for i in range(1, 5)] for g in "ABCDEFGHIJKL"}
+    bad["A"] = ["A1", "A2", "A3"]  # solo 3 equipos
+    ratings = {t: 1500.0 for teams in bad.values() for t in teams}
+    with pytest.raises(ValueError, match="!= 4"):
+        run_tournament(bad, ratings, MODEL, ANNEX, runs=10, seed=1)
 
 
 def test_locked_group_result_eliminates_a_team() -> None:
