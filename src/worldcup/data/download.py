@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from .live_results import MatchStatus, NormalizedMatch
 
@@ -204,7 +204,8 @@ def load_snapshot(
     if not path.exists():
         raise FileNotFoundError(f"No existe el snapshot: {path}")
     df = pd.read_parquet(path)
-    records: list[dict[str, Any]] = df.to_dict(orient="records")
+    # to_dict tipa las claves como Hashable; aquí son nombres de columna (str).
+    records = cast("list[dict[str, Any]]", df.to_dict(orient="records"))
     return [record_to_match(r) for r in records]
 
 
