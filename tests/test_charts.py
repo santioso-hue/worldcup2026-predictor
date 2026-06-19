@@ -7,14 +7,17 @@ import pytest
 
 from worldcup.viz.charts import (
     prepare_champion_ranking,
+    prepare_group_table,
     prepare_match_bar,
     prepare_reliability,
     prepare_score_heatmap,
     render_champion_ranking,
+    render_group_table,
     render_match_bar,
     render_reliability,
     render_score_heatmap,
 )
+from worldcup.viz.theme import THEME
 
 
 def test_champion_ranking_sorts_and_caps() -> None:
@@ -100,3 +103,42 @@ def test_render_reliability_smoke() -> None:
     ax = fig.axes[0]
     assert len(ax.lines) >= 1  # diagonal ideal
     assert len(ax.collections) >= 1  # scatter de puntos
+
+
+def test_prepare_group_table_sorts_by_advance() -> None:
+    groups = {"A": ["A1", "A2", "A3", "A4"]}
+    probs = {
+        t: {"advance": p}
+        for t, p in [("A1", 0.3), ("A2", 0.9), ("A3", 0.6), ("A4", 0.2)]
+    }
+    rows = prepare_group_table(groups, probs)["A"]
+    assert [r.team for r in rows] == ["A2", "A3", "A1", "A4"]  # desc por P(avance)
+
+
+def test_prepare_group_table_missing_team_raises() -> None:
+    with pytest.raises(ValueError):
+        prepare_group_table({"A": ["A1", "A2"]}, {"A1": {"advance": 0.5}})  # falta A2
+
+
+def test_render_group_table_smoke() -> None:
+    groups = {ltr: [f"{ltr}{i}" for i in range(1, 5)] for ltr in "ABCDEFGHIJKL"}
+    probs = {
+        f"{ltr}{i}": {"advance": 0.25 * i}
+        for ltr in "ABCDEFGHIJKL"
+        for i in range(1, 5)
+    }
+    fig = render_group_table(prepare_group_table(groups, probs))
+    assert len(fig.axes) == 12  # un panel por grupo (3x4)
+
+
+def test_score_heatmap_rejects_bad_max_goals() -> None:
+    matrix = np.zeros((6, 6))
+    matrix[0, 0] = 1.0
+    with pytest.raises(ValueError):
+        prepare_score_heatmap(matrix, max_goals=0)
+
+
+def test_render_applies_theme_font() -> None:
+    # La fuente de marca se aplica de verdad (no depende del default de matplotlib).
+    fig = render_champion_ranking(prepare_champion_ranking({"A": 1.0}))
+    assert THEME.font_family in fig.axes[0].title.get_fontfamily()

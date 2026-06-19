@@ -8,6 +8,7 @@ pyplot). Toda la marca vive en ``theme.py``. Orden 1X2: local, empate, visita.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -101,6 +102,8 @@ def prepare_score_heatmap(
     tol: float = 1e-6,
 ) -> HeatmapData:
     """Valida la matriz y la recorta a la región 0..max_goals para mostrar."""
+    if max_goals < 1:
+        raise ValueError("max_goals debe ser >= 1")
     arr = np.asarray(score_matrix, dtype=float)
     if arr.ndim != 2:
         raise ValueError("score_matrix debe ser 2D")
@@ -161,16 +164,19 @@ def _strip_chrome(ax: Axes) -> None:
     ax.tick_params(length=0)
 
 
-def render_champion_ranking(
-    rows: list[RankingRow],
-    *,
-    theme: Theme = THEME,
-    spec: ExportSpec = PORTRAIT,
-    title: str = "Probabilidad de campeón",
-    stamp: str | None = None,
-) -> Figure:
-    """Barras horizontales de P(título), rank 1 arriba, con valor y flecha de delta."""
-    fig, ax = _new_figure(spec, theme)
+def _apply_font(fig: Figure, theme: Theme) -> None:
+    """Fija la tipografía de marca en todo el texto de la figura (determinista)."""
+    from matplotlib.text import Text
+
+    for artist in fig.findobj(Text):
+        if isinstance(artist, Text):
+            artist.set_fontfamily(theme.font_family)
+
+
+def _draw_ranking_axes(
+    ax: Axes, rows: list[RankingRow], theme: Theme, *, title: str
+) -> None:
+    """Dibuja el ranking sobre ``ax`` (compartido por render y animación)."""
     positions = list(range(len(rows)))
     ax.barh(positions, [r.prob * 100 for r in rows], color=theme.accent)
     ax.set_yticks(positions)
@@ -191,6 +197,19 @@ def render_champion_ranking(
     ax.set_xlim(0, largest * 1.18)
     ax.set_xticks([])
     _strip_chrome(ax)
+
+
+def render_champion_ranking(
+    rows: list[RankingRow],
+    *,
+    theme: Theme = THEME,
+    spec: ExportSpec = PORTRAIT,
+    title: str = "Probabilidad de campeón",
+    stamp: str | None = None,
+) -> Figure:
+    """Barras horizontales de P(título), rank 1 arriba, con valor y flecha de delta."""
+    fig, ax = _new_figure(spec, theme)
+    _draw_ranking_axes(ax, rows, theme, title=title)
     if stamp is not None:
         fig.text(
             0.5,
@@ -200,7 +219,39 @@ def render_champion_ranking(
             color=theme.text_muted,
             fontsize=theme.stamp_size,
         )
+    _apply_font(fig, theme)
     return fig
+
+
+def animate_ranking(
+    snapshots: list[dict[str, float]],
+    *,
+    theme: Theme = THEME,
+    spec: ExportSpec = PORTRAIT,
+    title: str = "Probabilidad de campeón",
+    top_n: int = 10,
+    name: str = "ranking",
+    fps: int = 2,
+    fmt: str = "mp4",
+    outdir: Path | str = Path("outputs/videos"),
+) -> Path:
+    """Anima la evolución del ranking de campeón entre snapshots (el 'drumroll')."""
+    from .export import save_animation
+
+    if not snapshots:
+        raise ValueError("se requiere al menos un snapshot")
+    frames = [prepare_champion_ranking(s, top_n=top_n) for s in snapshots]
+    fig, ax = _new_figure(spec, theme)
+
+    def update(index: int) -> None:
+        ax.clear()
+        ax.set_facecolor(theme.background)
+        _draw_ranking_axes(ax, frames[index], theme, title=title)
+        _apply_font(fig, theme)
+
+    return save_animation(
+        fig, update, len(snapshots), name, fps=fps, fmt=fmt, outdir=outdir
+    )
 
 
 def render_match_bar(
@@ -233,6 +284,7 @@ def render_match_bar(
     if title is not None:
         ax.set_title(title, color=theme.text_primary, fontsize=theme.title_size, pad=16)
     _strip_chrome(ax)
+    _apply_font(fig, theme)
     return fig
 
 
@@ -268,6 +320,7 @@ def render_score_heatmap(
     ax.tick_params(colors=theme.text_primary)
     if title is not None:
         ax.set_title(title, color=theme.text_primary, fontsize=theme.title_size, pad=16)
+    _apply_font(fig, theme)
     return fig
 
 
@@ -289,4 +342,82 @@ def render_reliability(
     ax.tick_params(colors=theme.text_primary)
     if title is not None:
         ax.set_title(title, color=theme.text_primary, fontsize=theme.title_size, pad=16)
+    _apply_font(fig, theme)
+    return fig
+
+
+@dataclass(frozen=True)
+class GroupRow:
+    """Un equipo de un grupo con su probabilidad de avanzar."""
+
+    team: str
+    p_advance: float
+
+
+def prepare_group_table(
+    groups: dict[str, list[str]],
+    probabilities: dict[str, dict[str, float]],
+    *,
+    advance_key: str = "advance",
+) -> dict[str, list[GroupRow]]:
+    """Por grupo, equipos ordenados por P(avance) desc; falla si falta un equipo."""
+    if not groups:
+        raise ValueError("groups vacío")
+    table: dict[str, list[GroupRow]] = {}
+    for letter, teams in groups.items():
+        rows: list[GroupRow] = []
+        for team in teams:
+            probs = probabilities.get(team)
+            if probs is None or advance_key not in probs:
+                raise ValueError(f"falta P({advance_key}) para {team!r}")
+            rows.append(GroupRow(team=team, p_advance=probs[advance_key]))
+        rows.sort(key=lambda r: (-r.p_advance, r.team))
+        table[letter] = rows
+    return table
+
+
+def render_group_table(
+    table: dict[str, list[GroupRow]],
+    *,
+    theme: Theme = THEME,
+    spec: ExportSpec = LANDSCAPE,
+    title: str = "Probabilidad de avance",
+) -> Figure:
+    """Cuadrícula de paneles (uno por grupo) con barras de P(avance) por equipo."""
+    from matplotlib.figure import Figure
+
+    letters = sorted(table)
+    cols = min(4, len(letters))
+    n_rows = -(-len(letters) // cols)  # techo
+    fig = Figure(
+        figsize=(spec.width_px / spec.dpi, spec.height_px / spec.dpi), dpi=spec.dpi
+    )
+    fig.patch.set_facecolor(theme.background)
+    axes = fig.subplots(n_rows, cols, squeeze=False)
+    panels = list(axes.flat)
+    for ax, letter in zip(panels, letters, strict=False):
+        group_rows = table[letter]
+        ax.set_facecolor(theme.background)
+        ax.barh(
+            range(len(group_rows)),
+            [r.p_advance * 100 for r in group_rows],
+            color=theme.accent,
+        )
+        ax.set_yticks(range(len(group_rows)))
+        ax.set_yticklabels(
+            [r.team for r in group_rows],
+            color=theme.text_primary,
+            fontsize=theme.stamp_size,
+        )
+        ax.invert_yaxis()
+        ax.set_xlim(0, 100)
+        ax.set_xticks([])
+        ax.set_title(
+            f"Grupo {letter}", color=theme.text_primary, fontsize=theme.label_size
+        )
+        _strip_chrome(ax)
+    for ax in panels[len(letters) :]:  # ocultar paneles sobrantes
+        ax.set_visible(False)
+    fig.suptitle(title, color=theme.text_primary, fontsize=theme.title_size)
+    _apply_font(fig, theme)
     return fig
