@@ -39,8 +39,12 @@ python scripts/run_pipeline.py --snapshot 20260616t1830 --runs 50000
   `outcome_probabilities`, `sample_scoreline`) + `models/dixon_coles.py` (Elo→goles
   simétrico, matriz Poisson 9×9, corrección τ de marcador bajo, normalizada).
   Diseño en `docs/specs/2026-06-16-dixon-coles-design.md`.
-- [ ] Fases 4–8 — simulación condicional, evaluación, viz, CLI, dashboard, notebook.
-  Ver el plan en `PROJECT.md`.
+- [x] **Fase 4** — Monte Carlo condicional: `bracket.py` (R32→Final + Annex C),
+  `group_stage.py` (desempates Art. 13 con H2H recursivo), `match.py` (reglamentario +
+  prórroga + penales Elo), `tournament.py` (simula lo pendiente → P(ronda/campeón)),
+  `state.py` (schedule+snapshot → estado, con locks de grupo y eliminatoria).
+  Diseño en `docs/specs/2026-06-17-conditional-monte-carlo-design.md`.
+- [ ] Fases 5–8 — evaluación/backtest, viz, CLI, dashboard, notebook. Ver `PROJECT.md`.
 
 ## Arquitectura
 

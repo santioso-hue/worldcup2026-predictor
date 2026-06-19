@@ -78,7 +78,7 @@ def _simulate_once(
     annex_c: dict[frozenset[str], dict[str, str]],
     rng: np.random.Generator,
     locked_group: dict[frozenset[str], PlayedMatch],
-    locked_knockout: dict[int, str],
+    locked_knockout: dict[frozenset[str], str],
     et_total: float,
     denom: float,
 ) -> dict[str, str]:
@@ -117,8 +117,9 @@ def _simulate_once(
     for match_id in sorted(KNOCKOUT_BRACKET):
         slot_a, slot_b = KNOCKOUT_BRACKET[match_id]
         home, away = resolve(slot_a), resolve(slot_b)
-        if match_id in locked_knockout:
-            winner = locked_knockout[match_id]
+        locked_winner = locked_knockout.get(frozenset((home, away)))
+        if locked_winner is not None:
+            winner = locked_winner
         else:
             winner = (
                 simulate_match(
@@ -159,13 +160,13 @@ def run_tournament(
     extra_time_total_goals: float = 0.8,
     elo_denominator: float = 400.0,
     locked_group: dict[frozenset[str], PlayedMatch] | None = None,
-    locked_knockout: dict[int, str] | None = None,
+    locked_knockout: dict[frozenset[str], str] | None = None,
 ) -> dict[str, dict[str, float]]:
     """Corre el Monte Carlo condicional y devuelve ``{team: {ronda: probabilidad}}``.
 
     ``locked_group`` mapea ``frozenset({home, away}) -> PlayedMatch`` (resultados ya
-    jugados); ``locked_knockout`` mapea ``match_id -> ganador``. Lo bloqueado no se
-    re-muestrea (reconditioning live). Determinista dado ``(locks, seed)``.
+    jugados); ``locked_knockout`` mapea ``frozenset({home, away}) -> ganador``. Lo
+    bloqueado no se re-muestrea. Determinista dado ``(locks, seed)``.
     """
     locked_group = locked_group or {}
     locked_knockout = locked_knockout or {}
