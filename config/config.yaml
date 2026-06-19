@@ -94,4 +94,5 @@ simulation:
 # Evaluación (evaluation/backtest.py + calibration.py).
 # ---------------------------------------------------------------------------
 evaluation:
-  burn_in_matches: 150   # partidos de calentamiento antes de evaluar [ref:Hicruben]
+  burn_in_matches: 150       # partidos de calentamiento antes de evaluar [ref:Hicruben]
+  history_window_days: 2920  # ventana de refit del backtest (~8 años; recencia ~0 más allá)

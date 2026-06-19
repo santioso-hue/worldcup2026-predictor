@@ -121,6 +121,7 @@ class SimulationConfig(_Base):
 
 class EvaluationConfig(_Base):
     burn_in_matches: int = Field(ge=0)
+    history_window_days: int = Field(gt=0)
 
 
 class Config(_Base):
