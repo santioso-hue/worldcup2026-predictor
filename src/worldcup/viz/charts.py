@@ -421,3 +421,35 @@ def render_group_table(
     fig.suptitle(title, color=theme.text_primary, fontsize=theme.title_size)
     _apply_font(fig, theme)
     return fig
+
+
+_ROUND_LABELS = {
+    "advance": "Avanza",
+    "round_of_16": "Octavos",
+    "quarter_finals": "Cuartos",
+    "semi_finals": "Semis",
+    "final": "Final",
+    "champion": "Campeón",
+}
+
+
+@dataclass(frozen=True)
+class TeamRound:
+    """Probabilidad de un equipo de alcanzar una ronda, con etiqueta legible."""
+
+    label: str
+    prob: float
+
+
+def prepare_team_detail(
+    probabilities: dict[str, dict[str, float]], team: str
+) -> list[TeamRound]:
+    """Probabilidades por ronda de un equipo, en orden canónico; falla si no está."""
+    probs = probabilities.get(team)
+    if probs is None:
+        raise ValueError(f"equipo desconocido: {team!r}")
+    return [
+        TeamRound(label=label, prob=probs[key])
+        for key, label in _ROUND_LABELS.items()
+        if key in probs
+    ]

@@ -26,11 +26,12 @@ from .simulation.state import build_state, run_from_state
 
 @dataclass(frozen=True)
 class PipelineResult:
-    """Salida del pipeline: probabilidades, ratings y anomalías de reconcile."""
+    """Salida del pipeline: probabilidades, ratings, grupos y anomalías de reconcile."""
 
     probabilities: dict[str, dict[str, float]]
     ratings: dict[str, float]
     anomalies: list[tuple[str, str]]
+    groups: dict[str, list[str]]
 
 
 def run_pipeline(
@@ -67,7 +68,10 @@ def run_pipeline(
         extra_time_total_goals=config.simulation.extra_time_total_goals,
     )
     result = PipelineResult(
-        probabilities=probabilities, ratings=ratings, anomalies=rec.anomalies
+        probabilities=probabilities,
+        ratings=ratings,
+        anomalies=rec.anomalies,
+        groups=state.groups,
     )
     return result, rec.matches
 
@@ -108,17 +112,19 @@ def write_probabilities(
     outdir: Path | str,
     ts: str,
     *,
+    groups: dict[str, list[str]] | None = None,
     latest_pointer: str = "latest.json",
     update_pointer: bool = True,
 ) -> Path:
     """Escribe ``probabilities_<ts>.json`` y, si ``update_pointer``, el ``latest``.
 
-    Los replays/baselines escriben su JSON pero NO mueven el puntero live.
+    El payload incluye ``groups`` (para las tablas del dashboard). Los replays/baselines
+    escriben su JSON pero NO mueven el puntero live.
     """
     out = Path(outdir)
     out.mkdir(parents=True, exist_ok=True)
     path = out / f"probabilities_{ts}.json"
-    payload = {"timestamp": ts, "probabilities": probabilities}
+    payload = {"timestamp": ts, "groups": groups or {}, "probabilities": probabilities}
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
     if update_pointer:
         (out / latest_pointer).write_text(json.dumps({"timestamp": ts}))
@@ -140,6 +146,35 @@ def load_latest_probabilities(
     payload = json.loads(path.read_text())
     probabilities: dict[str, dict[str, float]] = payload["probabilities"]
     return probabilities
+
+
+@dataclass(frozen=True)
+class RunArtifact:
+    """Una corrida persistida: timestamp, grupos y probabilidades."""
+
+    timestamp: str
+    groups: dict[str, list[str]]
+    probabilities: dict[str, dict[str, float]]
+
+
+def load_latest_run(
+    outdir: Path | str, *, latest_pointer: str = "latest.json"
+) -> RunArtifact | None:
+    """Carga la última corrida (timestamp + grupos + probabilidades); ``None``."""
+    out = Path(outdir)
+    pointer = out / latest_pointer
+    if not pointer.exists():
+        return None
+    ts = json.loads(pointer.read_text())["timestamp"]
+    path = out / f"probabilities_{ts}.json"
+    if not path.exists():
+        return None
+    payload = json.loads(path.read_text())
+    return RunArtifact(
+        timestamp=payload["timestamp"],
+        groups=payload.get("groups", {}),
+        probabilities=payload["probabilities"],
+    )
 
 
 def render_outputs(

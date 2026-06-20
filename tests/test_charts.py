@@ -11,6 +11,7 @@ from worldcup.viz.charts import (
     prepare_match_bar,
     prepare_reliability,
     prepare_score_heatmap,
+    prepare_team_detail,
     render_champion_ranking,
     render_group_table,
     render_match_bar,
@@ -142,3 +143,19 @@ def test_render_applies_theme_font() -> None:
     # La fuente de marca se aplica de verdad (no depende del default de matplotlib).
     fig = render_champion_ranking(prepare_champion_ranking({"A": 1.0}))
     assert THEME.font_family in fig.axes[0].title.get_fontfamily()
+
+
+def test_prepare_team_detail_orders_rounds() -> None:
+    probs = {"A1": {"champion": 0.1, "advance": 0.8, "quarter_finals": 0.4}}
+    detail = prepare_team_detail(probs, "A1")
+    assert [d.label for d in detail] == [
+        "Avanza",
+        "Cuartos",
+        "Campeón",
+    ]  # orden canónico
+    assert [d.prob for d in detail] == [0.8, 0.4, 0.1]
+
+
+def test_prepare_team_detail_unknown_team_raises() -> None:
+    with pytest.raises(ValueError):
+        prepare_team_detail({"A1": {"champion": 0.1}}, "ZZ")

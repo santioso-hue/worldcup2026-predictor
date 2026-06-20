@@ -13,6 +13,7 @@ from worldcup.data.historical import HistoricalMatch
 from worldcup.data.live_results import MatchStatus, NormalizedMatch
 from worldcup.pipeline import (
     load_latest_probabilities,
+    load_latest_run,
     predict_match,
     render_outputs,
     run_pipeline,
@@ -132,3 +133,31 @@ def test_render_outputs_writes_png(tmp_path: Path) -> None:
     result, _ = run_pipeline(_backbone(), [], _HISTORY, CFG, ANNEX, runs=50, seed=3)
     paths = render_outputs(result, None, tmp_path, ts="20260620t1200")
     assert paths and all(p.exists() and p.stat().st_size > 0 for p in paths)
+
+
+def test_load_latest_run_roundtrip(tmp_path: Path) -> None:
+    groups = {"A": ["A1", "A2", "A3", "A4"]}
+    probs = {"A1": {"champion": 0.2, "advance": 0.8}}
+    write_probabilities(probs, tmp_path, "20260620t1200", groups=groups)
+    run = load_latest_run(tmp_path)
+    assert run is not None
+    assert run.timestamp == "20260620t1200"
+    assert run.groups == groups
+    assert run.probabilities == probs
+    assert load_latest_run(tmp_path / "nope") is None  # sin puntero -> None
+
+
+def test_run_pipeline_output_feeds_dashboard_prep(tmp_path: Path) -> None:
+    # Contrato del dashboard: la salida real (groups+probabilities) fluye por
+    # write -> load_latest_run -> prepare_group_table / prepare_team_detail sin romper.
+    from worldcup.viz.charts import prepare_group_table, prepare_team_detail
+
+    result, _ = run_pipeline(_backbone(), [], _HISTORY, CFG, ANNEX, runs=20, seed=2)
+    write_probabilities(
+        result.probabilities, tmp_path, "20260620t0900", groups=result.groups
+    )
+    run = load_latest_run(tmp_path)
+    assert run is not None
+    table = prepare_group_table(run.groups, run.probabilities)
+    assert len(table) == 12 and all(len(rows) == 4 for rows in table.values())
+    assert prepare_team_detail(run.probabilities, next(iter(run.probabilities)))

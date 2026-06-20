@@ -107,7 +107,11 @@ def _run_once(
         load_latest_probabilities(config.paths.data_processed) if is_live else None
     )
     write_probabilities(
-        result.probabilities, config.paths.data_processed, ts, update_pointer=is_live
+        result.probabilities,
+        config.paths.data_processed,
+        ts,
+        groups=result.groups,
+        update_pointer=is_live,
     )
     render_outputs(result, previous_probs, config.paths.figures, ts=ts)
     for match_id, anomaly in result.anomalies:
