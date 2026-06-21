@@ -25,3 +25,7 @@ outputs/videos/*
 
 # OS
 .DS_Store
+
+# Cachés descargados de martj42 (regenerables vía fetch_martj42; no son fuente de verdad).
+data/raw/results.csv
+data/raw/shootouts.csv

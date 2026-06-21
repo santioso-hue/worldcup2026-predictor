@@ -1,0 +1,49 @@
+name: refresh
+
+# Refresco automático y robusto del pipeline (recomendado sobre `--watch`, que depende de
+# un proceso vivo). Cada corrida es un único CronTrigger: fetch live -> reconcile -> simula
+# -> figuras + probabilities JSON, publicados como artefactos (las salidas son regenerables
+# y NO se versionan: ver .gitignore).
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    # Cada 30 min. Solo tiene sentido durante el torneo (jun–jul 2026); fuera de esa ventana
+    # deshabilita el workflow o haz el cron más espaciado para no gastar el presupuesto de la
+    # API. El proveedor pide polling por ventanas (SOURCES.md); afina el cron en días de
+    # partido (o usa un webhook del proveedor para refresco instantáneo).
+    - cron: "*/30 * * * *"
+
+# No solapar corridas: si una sigue viva cuando dispara la siguiente, ésta espera.
+concurrency:
+  group: refresh
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install
+        run: pip install -e .
+      - name: Run pipeline (live)
+        env:
+          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
+        run: python scripts/run_pipeline.py --mode live
+      - name: Upload predictions
+        uses: actions/upload-artifact@v4
+        with:
+          name: predictions-${{ github.run_id }}
+          path: |
+            data/processed/probabilities_*.json
+            data/processed/latest.json
+            outputs/figures/*.png
+            outputs/videos/*.mp4
+          if-no-files-found: warn

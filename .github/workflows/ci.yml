@@ -16,9 +16,9 @@ jobs:
       - name: Install
         run: pip install -e ".[dev]"
       - name: Lint (ruff)
-        run: ruff check src tests
+        run: ruff check src tests scripts app
       - name: Format check (black)
-        run: black --check src tests
+        run: black --check src tests scripts app
       - name: Types (mypy)
         run: mypy src
       - name: Tests (pytest)
