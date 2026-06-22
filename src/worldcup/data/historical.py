@@ -60,15 +60,20 @@ def parse_results_csv(text: str) -> list[HistoricalMatch]:
     return matches
 
 
-def fetch_martj42(url: str, dest: Path | str, *, timeout: float = 60.0) -> Path:
+def fetch_martj42(
+    url: str, dest: Path | str, *, timeout: float = 60.0, force: bool = False
+) -> Path:
     """Descarga el CSV de martj42 y lo cachea en ``dest`` (I/O; ``requests`` perezoso).
 
-    Idempotente: si ``dest`` ya existe, no vuelve a descargar.
+    Idempotente salvo ``force``: si ``dest`` ya existe y no se fuerza, no re-descarga.
+    Las corridas live hacia adelante fuerzan el refresco (el Elo debe absorber los
+    últimos resultados, no quedar congelado en una caché vieja); el replay reproducible
+    (``--snapshot``) usa la copia cacheada para ser determinista.
     """
     import requests
 
     dest = Path(dest)
-    if dest.exists():
+    if dest.exists() and not force:
         return dest
     resp = requests.get(url, timeout=timeout)
     resp.raise_for_status()

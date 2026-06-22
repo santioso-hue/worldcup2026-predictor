@@ -199,10 +199,11 @@ para comparar accuracy/log-loss en el backtest, no como default.
   ~45k+ partidos desde 1872). Base de Elo y backtest.
 - **Calendario WC2026:** `openfootball/worldcup.json` (fixtures, 12 grupos, sedes).
 - **Ranking FIFA:** opcional como prior de Elo inicial.
-- **Resultados live (REQUERIDO, no opcional):** primario **API-Football** (api-sports.io,
-  tier free 100 req/día): el endpoint `fixtures?live=all` devuelve todos los partidos en
-  juego en una sola llamada y cubre el WC2026. Fallback de resultados finalizados:
-  **football-data.org** (free forever). Schedule: **openfootball/worldcup.json**.
+- **Resultados live (REQUERIDO, no opcional):** primario **football-data.org** (v4, free
+  forever, cubre el WC2026 sin límite de temporada; auth `X-Auth-Token`): un solo GET a
+  `/competitions/WC/matches` trae los 104 partidos con su estado. Alternativo:
+  **API-Football** (api-sports.io) — pero su tier free NO llega a la temporada 2026.
+  Schedule: **openfootball/worldcup.json**.
   La decisión completa, el presupuesto de requests y los puntos a verificar están en
   **`data/raw/SOURCES.md`** (léelo antes de codear el cliente).
 

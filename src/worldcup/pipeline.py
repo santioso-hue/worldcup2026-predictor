@@ -62,6 +62,9 @@ def run_pipeline(
     # las llaves KO del backbone traen etiquetas de slot ("2A", "1E"), no selecciones.
     teams = {team for members in group_teams(rec.matches).values() for team in members}
     ratings = {t: fitted.get(t, config.elo.initial_rating) for t in teams}
+    # Bono de sede: las anfitrionas reciben elo.host_advantage en sus partidos.
+    hosts = set(config.simulation.hosts)
+    host_advantage = {t: config.elo.host_advantage for t in teams if t in hosts}
     state = build_state(rec.matches, ratings)
     model = DixonColesModel(config.elo, config.dixon_coles)
     probabilities = run_from_state(
@@ -71,6 +74,7 @@ def run_pipeline(
         runs=runs,
         seed=seed,
         extra_time_total_goals=config.simulation.extra_time_total_goals,
+        host_advantage=host_advantage,
     )
     result = PipelineResult(
         probabilities=probabilities,
@@ -92,17 +96,17 @@ def predict_match(
 ) -> MatchOutcome:
     """1X2 de un partido puntual desde los ratings Elo del histórico.
 
-    ``host`` aplica la ventaja de localía al equipo anfitrión (``home`` o ``away``); en
-    sede neutral (``host=None``) no hay ventaja. Equipos sin histórico usan
-    ``initial_rating``.
+    ``host`` aplica la ventaja de **sede del Mundial** (``elo.host_advantage``, no la
+    localía plena de un amistoso) al equipo anfitrión (``home`` o ``away``); en sede
+    neutral (``host=None``) no hay ventaja. Sin histórico se usa ``initial_rating``.
     """
     fitted = fit_elo(history, config.elo, reference_date=reference_date)
     rating_home = fitted.get(home, config.elo.initial_rating)
     rating_away = fitted.get(away, config.elo.initial_rating)
     if host == home:
-        advantage = config.elo.home_advantage
+        advantage = config.elo.host_advantage
     elif host == away:
-        advantage = -config.elo.home_advantage
+        advantage = -config.elo.host_advantage
     else:
         advantage = 0.0
     model = DixonColesModel(config.elo, config.dixon_coles)

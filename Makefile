@@ -26,7 +26,7 @@ test:  ## pytest
 lint:  ## ruff + black --check + mypy
 	$(BIN)/ruff check src tests scripts app
 	$(BIN)/black --check src tests scripts app
-	$(BIN)/mypy src
+	$(BIN)/mypy src tests scripts app
 
 fmt:  ## black + ruff --fix
 	$(BIN)/black src tests scripts app

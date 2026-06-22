@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -10,7 +11,7 @@ from worldcup.config import load_config
 from worldcup.models.dixon_coles import DixonColesModel
 from worldcup.simulation.bracket import load_annex_c
 from worldcup.simulation.group_stage import PlayedMatch
-from worldcup.simulation.tournament import run_tournament
+from worldcup.simulation.tournament import _net_host_advantage, run_tournament
 
 CFG = load_config(Path(__file__).resolve().parents[1] / "config" / "config.yaml")
 ANNEX = load_annex_c(
@@ -23,7 +24,9 @@ ALL_TEAMS = [t for teams in GROUPS.values() for t in teams]
 BASE_RATINGS = {t: 1500.0 for t in ALL_TEAMS}
 
 
-def _run(ratings, runs=200, seed=42, **kw):
+def _run(
+    ratings: dict[str, float], runs: int = 200, seed: int = 42, **kw: Any
+) -> dict[str, dict[str, float]]:
     return run_tournament(GROUPS, ratings, MODEL, ANNEX, runs=runs, seed=seed, **kw)
 
 
@@ -49,8 +52,22 @@ def test_strongest_team_is_most_likely_champion() -> None:
     ratings["A1"] = 2400.0  # muy por encima del resto
     probs = _run(ratings, runs=300)
     champ = {t: probs[t]["champion"] for t in ALL_TEAMS}
-    assert max(champ, key=champ.get) == "A1"
+    assert max(champ, key=lambda t: champ[t]) == "A1"
     assert champ["A1"] > 0.25
+
+
+def test_net_host_advantage_is_signed_and_neutral_between_hosts() -> None:
+    hosts = {"USA": 37.5}
+    assert _net_host_advantage("USA", "Brazil", hosts) == 37.5  # local anfitrión
+    assert _net_host_advantage("Brazil", "USA", hosts) == -37.5  # visitante anfitrión
+    assert _net_host_advantage("Brazil", "Argentina", hosts) == 0.0  # ninguno anfitrión
+
+
+def test_host_advantage_raises_host_champion_probability() -> None:
+    # Con ratings iguales, el bono de sede debe subir la P(campeón) del anfitrión.
+    base = _run(BASE_RATINGS, runs=400, seed=11)
+    boosted = _run(BASE_RATINGS, runs=400, seed=11, host_advantage={"A1": 300.0})
+    assert boosted["A1"]["champion"] > base["A1"]["champion"]
 
 
 def test_rejects_malformed_groups() -> None:

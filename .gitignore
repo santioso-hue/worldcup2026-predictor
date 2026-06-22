@@ -29,3 +29,7 @@ outputs/videos/*
 # Cachés descargados de martj42 (regenerables vía fetch_martj42; no son fuente de verdad).
 data/raw/results.csv
 data/raw/shootouts.csv
+
+# Snapshots live + puntero: estado de corrida regenerable, no fuente de verdad.
+data/raw/results_*.parquet
+data/raw/latest.txt

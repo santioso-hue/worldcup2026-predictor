@@ -52,9 +52,12 @@ def _load_dotenv() -> None:
         os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 
 
-def _load_history(config: Config) -> list[HistoricalMatch]:
+def _load_history(
+    config: Config, *, force_refresh: bool = False
+) -> list[HistoricalMatch]:
     dest = config.paths.data_raw / "results.csv"
-    fetch_martj42(config.data.historical.results_url, dest)  # idempotente
+    # Live re-descarga para Elo fresco; el replay usa la caché (determinista).
+    fetch_martj42(config.data.historical.results_url, dest, force=force_refresh)
     return parse_results_csv(dest.read_text())
 
 
@@ -119,7 +122,7 @@ def _run_once(
         if is_live
         else []
     )
-    history = _load_history(config)
+    history = _load_history(config, force_refresh=not is_replay)
     # Baseline pre-torneo: el Elo solo usa partidos ANTES del primer fixture (excluye
     # los resultados del torneo en curso). Live usa el Elo actual.
     history_cutoff: date | None = None

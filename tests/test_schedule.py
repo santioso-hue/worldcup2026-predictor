@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Any
 
 import pytest
 
@@ -16,7 +17,7 @@ from worldcup.data.schedule import (
 )
 
 # Muestra mínima con el esquema VERIFICADO de openfootball (matchday + knockout).
-SAMPLE = {
+SAMPLE: dict[str, Any] = {
     "rounds": [
         {
             "name": "Matchday 1",

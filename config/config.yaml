@@ -58,7 +58,9 @@ elo:
   initial_rating: 1500.0          # rating base para equipos sin historia
   home_advantage: 75.0            # bono Elo de localía         [ref:Hicruben]
   host_advantage: 37.5            # bono de sede (Mundial)      [ref:Hicruben]
-  recency_half_life_months: 18.0  # vida media del peso temporal [ref:Hicruben]
+  recency_half_life_months: 48.0  # vida media del peso temporal (afinado vía backtest:
+                                  # 18m sobre-pesaba la forma reciente; 48m minimiza
+                                  # log-loss out-of-sample 2023+ sin perder recencia)
   base_lambda: 1.35               # goles esperados a diff Elo 0 [ref:Hicruben]
   elo_per_goal_denominator: 400.0 # +1 gol esperado por 400 Elo  [ref:Hicruben]
   lambda_min: 0.3                 # clip inferior de goles esp.  [ref:Hicruben]
@@ -88,6 +90,10 @@ dixon_coles:
 simulation:
   runs: 50000                 # nº de torneos simulados
   extra_time_total_goals: 0.8 # goles esperados totales en prórroga [ref:Currybon30]
+  hosts:                      # sedes WC2026: +elo.host_advantage en sus partidos simulados
+    - United States
+    - Mexico
+    - Canada
 
 # ---------------------------------------------------------------------------
 # Evaluación (evaluation/backtest.py + calibration.py).

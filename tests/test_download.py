@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 
 import pytest
 
@@ -72,7 +73,7 @@ def test_record_round_trip_is_lossless() -> None:
         assert record_to_match(match_to_record(original)) == original
 
 
-def test_parquet_round_trip(tmp_path) -> None:
+def test_parquet_round_trip(tmp_path: Path) -> None:
     pytest.importorskip("pandas")
     pytest.importorskip("pyarrow")
     matches = [_finished(), _scheduled()]
@@ -85,7 +86,7 @@ def test_parquet_round_trip(tmp_path) -> None:
     assert load_latest_snapshot(tmp_path) == matches
 
 
-def test_snapshots_are_immutable(tmp_path) -> None:
+def test_snapshots_are_immutable(tmp_path: Path) -> None:
     pytest.importorskip("pandas")
     pytest.importorskip("pyarrow")
     ts = "20260719t2130"
@@ -94,7 +95,7 @@ def test_snapshots_are_immutable(tmp_path) -> None:
         save_snapshot([_finished()], ts, tmp_path)  # no se machaca
 
 
-def test_load_latest_none_when_empty(tmp_path) -> None:
+def test_load_latest_none_when_empty(tmp_path: Path) -> None:
     assert latest_timestamp(tmp_path) is None
     assert load_latest_snapshot(tmp_path) is None
 

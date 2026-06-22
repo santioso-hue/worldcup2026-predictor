@@ -117,6 +117,7 @@ class DixonColesConfig(_Base):
 class SimulationConfig(_Base):
     runs: int = Field(gt=0)
     extra_time_total_goals: float = Field(ge=0)
+    hosts: list[str] = Field(default_factory=list)  # sedes -> bono elo.host_advantage
 
 
 class EvaluationConfig(_Base):

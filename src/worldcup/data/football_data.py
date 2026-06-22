@@ -10,8 +10,9 @@ trae ``id``, ``utcDate``, ``status``, ``stage``, ``group``, los equipos y
 ``score.{winner, duration, fullTime, halfTime}``.
 
 Penales: v4 NO desglosa la tanda y pliega la prórroga en ``fullTime``. Si hay ganador
-con ``fullTime`` empatado (penales), codificamos ``pen_*`` (1,0)/(0,1) con el ganador,
-suficiente para que ``_winner_of`` resuelva la llave.
+con ``fullTime`` empatado (penales), codificamos ``pen_*`` (1,0)/(0,1) con el ganador y
+reflejamos ``et_* = ft_*`` (empate tras prórroga). El ``et`` no es decorativo: sin él,
+``validate_match`` marcaría "penales sin prórroga" y ``reconcile`` descartaría la llave.
 """
 
 from __future__ import annotations
@@ -26,6 +27,7 @@ from .live_results import (
     normalize_status,
 )
 from .schedule import make_match_id
+from .team_names import canonical_footballdata_team
 
 PROVIDER_NAME = "football_data"
 
@@ -78,26 +80,35 @@ def parse_footballdata_match(
     """Convierte un match de football-data.org v4 a :class:`NormalizedMatch` (puro).
 
     El ``match_id`` se deriva de la fecha UTC del kickoff + equipos (mismo ancla que el
-    backbone y API-Football, para unir feeds). ``et_*`` queda ``None`` (v4 lo pliega en
-    ``fullTime``); los penales se codifican desde ``score.winner`` (ver módulo).
+    backbone y API-Football, para unir feeds). En un KO por penales se codifican
+    ``pen_*`` desde ``score.winner`` y se refleja ``et_* = ft_*`` (ver módulo).
     """
     score = raw.get("score") or {}
     full_time = score.get("fullTime") or {}
     half_time = score.get("halfTime") or {}
-    home = raw["homeTeam"]["name"]
-    away = raw["awayTeam"]["name"]
+    # Canonicalizamos a los nombres de martj42 ANTES de derivar el match_id, para que
+    # el id, reconcile, los grupos y el lookup de Elo compartan una sola identidad.
+    home = canonical_footballdata_team(raw["homeTeam"]["name"])
+    away = canonical_footballdata_team(raw["awayTeam"]["name"])
     kickoff = _iso_to_utc(raw["utcDate"])
 
     ft_home = _opt_int(full_time.get("home"))
     ft_away = _opt_int(full_time.get("away"))
     pen_home: int | None = None
     pen_away: int | None = None
+    et_home: int | None = None
+    et_away: int | None = None
     winner = score.get("winner")
     if (
         winner in ("HOME_TEAM", "AWAY_TEAM")
         and ft_home is not None
         and ft_home == ft_away
     ):
+        # v4 pliega la prórroga en fullTime: empate (ft) con ganador => penales tras
+        # una prórroga también empatada. Reflejamos et = ft además de pen_*, para que
+        # validate_match lo lea como "empate resuelto por penales"; sin el et, la regla
+        # "penales sin prórroga" lo haría sospechoso y reconcile lo descartaría.
+        et_home, et_away = ft_home, ft_away
         pen_home, pen_away = (1, 0) if winner == "HOME_TEAM" else (0, 1)
 
     return NormalizedMatch(
@@ -113,8 +124,8 @@ def parse_footballdata_match(
         ht_away=_opt_int(half_time.get("away")),
         ft_home=ft_home,
         ft_away=ft_away,
-        et_home=None,
-        et_away=None,
+        et_home=et_home,
+        et_away=et_away,
         pen_home=pen_home,
         pen_away=pen_away,
         venue=None,

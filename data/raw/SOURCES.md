@@ -10,8 +10,8 @@
 
 | Rol | Fuente | Por qué |
 |-----|--------|---------|
-| **Resultados live (primario)** | **API-Football** (api-sports.io), tier free | 1.200+ ligas, WC2026 cubierto, **un solo endpoint `fixtures?live=all`** devuelve todos los partidos en juego, in-play + finished, bien documentado. 100 req/día alcanzan con polling por ventanas. |
-| **Source of record (resultados finalizados, fallback)** | **football-data.org**, tier free | "Free forever" (compromiso público del autor), incluye World Cup, 10 req/min. Finales fiables. *Caveat:* el in-play minuto a minuto es add-on de pago; los **resultados FINALIZADOS** sí están en el endpoint estándar — confirmar latencia en su doc. |
+| **Resultados live (primario)** | **football-data.org** (v4), tier free | "Free forever", cubre el WC2026 **sin límite de temporada** (verificado 22-jun-2026: los 104 partidos vía un solo GET `/competitions/WC/matches`, in-play + finished). Auth `X-Auth-Token`, 10 req/min. *Notas v4:* los KO sin resolver llegan con equipos `null` (se omiten; el bracket se reconstruye); los penales van en `score.winner` (no se desglosa la tanda). |
+| **Resultados live (alternativo)** | **API-Football** (api-sports.io), tier free | `fixtures?live=all` devuelve todos los partidos concurrentes en una llamada. **Caveat (verificado 22-jun-2026):** el tier free NO da acceso a la temporada 2026 ("Free plans do not have access to this season, try from 2022 to 2024") → inservible para el WC2026 sin plan de pago. |
 | **Calendario / backbone** | **openfootball/worldcup.json** (GitHub) | Versionado en git, sin API key, fixtures + 12 grupos + sedes. Fuente confiable del schedule y fallback offline. |
 | **Histórico (Elo + backtest)** | **martj42/international_results** (GitHub/Kaggle) | ~47k+ partidos internacionales desde 1872. Base del Elo y del backtest. |
 | **Conveniencia WC-específica (fallback)** | **rezarahiminia/worldcup2026** (`worldcup26.ir`) | REST gratis, sin key, específico del WC2026 (104 partidos, standings, bracket). *Riesgo:* proyecto de un solo mantenedor; uptime/longevidad sin verificar → solo fallback, o auto-hospedar (Node/Express/Mongo). |

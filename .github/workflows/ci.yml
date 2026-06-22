@@ -20,6 +20,6 @@ jobs:
       - name: Format check (black)
         run: black --check src tests scripts app
       - name: Types (mypy)
-        run: mypy src
+        run: mypy src tests scripts app
       - name: Tests (pytest)
         run: pytest

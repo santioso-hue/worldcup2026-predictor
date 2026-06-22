@@ -10,7 +10,7 @@ YouTube Shorts / Reels. Modelo: **Elo dinámico → Dixon-Coles → Monte Carlo 
 
 ```bash
 make setup                        # crea .venv e instala deps (pyproject.toml)
-make run                          # pipeline live completo (necesita API_FOOTBALL_KEY)
+make run                          # pipeline live completo (necesita FOOTBALL_DATA_TOKEN)
 streamlit run app/dashboard.py    # dashboard interactivo (lee la última corrida)
 ```
 

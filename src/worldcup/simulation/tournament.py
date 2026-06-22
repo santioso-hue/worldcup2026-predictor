@@ -7,8 +7,10 @@ la eliminatoria (condicionada a lo bloqueado). Agrega sobre ``runs`` corridas ->
 P(avanzar / R16 / QF / SF / final / campeón) por selección. Determinista dado el
 snapshot (locks) + la semilla.
 
-*Simplificación v1:* los partidos simulados se tratan como cancha neutral
-(``home_advantage=0``); el bono de sede llegará con el cableado del schedule (state.py).
+*Bono de sede:* las anfitrionas (``config.simulation.hosts``) reciben
+``elo.host_advantage`` en sus partidos simulados, vía ``host_advantage`` (mapa
+``team -> bono``); en un cruce el bono es neto (local anfitrión menos visitante
+anfitrión), así dos anfitrionas entre sí juegan neutral.
 *Rendimiento:* sin caché de matrices (correctness-first); para 50k corridas conviene
 cachear ``score_matrix`` por emparejamiento (futuro).
 """
@@ -40,6 +42,17 @@ _ROUND_INDEX = {r: i for i, r in enumerate(ROUNDS)}
 _GROUP_KEYS = frozenset("ABCDEFGHIJKL")
 
 
+def _net_host_advantage(
+    home: str, away: str, host_advantage: dict[str, float]
+) -> float:
+    """Bono de sede neto: +bono si el local es anfitrión, -bono si lo es el visitante.
+
+    Dos anfitrionas entre sí (o ninguna) -> 0. La etiqueta home/away del bracket no
+    refleja la sede real (todo se juega en US/MX/CA), así que el bono va al anfitrión.
+    """
+    return host_advantage.get(home, 0.0) - host_advantage.get(away, 0.0)
+
+
 def _validate_groups(groups: dict[str, list[str]]) -> None:
     """Falla ruidosamente si ``groups`` no es la estructura WC2026 (12 grupos A-L de 4).
 
@@ -62,6 +75,7 @@ def _simulate_group(
     locked_group: dict[frozenset[str], PlayedMatch],
     et_total: float,
     denom: float,
+    host_advantage: dict[str, float],
 ) -> list[TeamStanding]:
     """Simula (o usa el lock de) los 6 partidos del grupo; devuelve las posiciones."""
     matches: list[PlayedMatch] = []
@@ -77,6 +91,7 @@ def _simulate_group(
                 ratings[home],
                 ratings[away],
                 rng,
+                home_advantage=_net_host_advantage(home, away, host_advantage),
                 extra_time_total_goals=et_total,
                 elo_denominator=denom,
             )
@@ -98,10 +113,13 @@ def _simulate_once(
     locked_knockout: dict[frozenset[str], str],
     et_total: float,
     denom: float,
+    host_advantage: dict[str, float],
 ) -> dict[str, str]:
     """Una realización del torneo -> ``{team: ronda más profunda alcanzada}``."""
     group_standings = {
-        g: _simulate_group(teams, ratings, model, rng, locked_group, et_total, denom)
+        g: _simulate_group(
+            teams, ratings, model, rng, locked_group, et_total, denom, host_advantage
+        )
         for g, teams in groups.items()
     }
     winners = {g: gs[0].team for g, gs in group_standings.items()}
@@ -146,6 +164,7 @@ def _simulate_once(
                     ratings[home],
                     ratings[away],
                     rng,
+                    home_advantage=_net_host_advantage(home, away, host_advantage),
                     knockout=True,
                     extra_time_total_goals=et_total,
                     elo_denominator=denom,
@@ -178,16 +197,19 @@ def run_tournament(
     elo_denominator: float = 400.0,
     locked_group: dict[frozenset[str], PlayedMatch] | None = None,
     locked_knockout: dict[frozenset[str], str] | None = None,
+    host_advantage: dict[str, float] | None = None,
 ) -> dict[str, dict[str, float]]:
     """Corre el Monte Carlo condicional y devuelve ``{team: {ronda: probabilidad}}``.
 
     ``locked_group`` mapea ``frozenset({home, away}) -> PlayedMatch`` (resultados ya
     jugados); ``locked_knockout`` mapea ``frozenset({home, away}) -> ganador``. Lo
-    bloqueado no se re-muestrea. Determinista dado ``(locks, seed)``.
+    bloqueado no se re-muestrea. ``host_advantage`` mapea ``anfitrión -> bono Elo`` (se
+    aplica neto por cruce; vacío = cancha neutral). Determinista dado ``(locks, seed)``.
     """
     _validate_groups(groups)
     locked_group = locked_group or {}
     locked_knockout = locked_knockout or {}
+    host_advantage = host_advantage or {}
     counts = {t: dict.fromkeys(ROUNDS, 0) for t in ratings}
 
     for run_rng in spawn_rngs(seed, runs):
@@ -201,6 +223,7 @@ def run_tournament(
             locked_knockout,
             extra_time_total_goals,
             elo_denominator,
+            host_advantage,
         )
         for team, deepest in reached.items():
             for i in range(

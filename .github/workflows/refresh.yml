@@ -34,8 +34,10 @@ jobs:
       - name: Install
         run: pip install -e .
       - name: Run pipeline (live)
+        # El proveedor primario es football-data.org (config.data.live.provider). Define
+        # el secret FOOTBALL_DATA_TOKEN en Settings > Secrets del repo.
         env:
-          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
+          FOOTBALL_DATA_TOKEN: ${{ secrets.FOOTBALL_DATA_TOKEN }}
         run: python scripts/run_pipeline.py --mode live
       - name: Upload predictions
         uses: actions/upload-artifact@v4

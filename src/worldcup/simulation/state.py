@@ -88,6 +88,7 @@ def run_from_state(
     seed: int,
     extra_time_total_goals: float = 0.8,
     elo_denominator: float = 400.0,
+    host_advantage: dict[str, float] | None = None,
 ) -> dict[str, dict[str, float]]:
     """Corre el Monte Carlo condicional a partir de un :class:`TournamentState`."""
     return run_tournament(
@@ -101,4 +102,5 @@ def run_from_state(
         elo_denominator=elo_denominator,
         locked_group=state.locked_group,
         locked_knockout=state.locked_knockout,
+        host_advantage=host_advantage,
     )
