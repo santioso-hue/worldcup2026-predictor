@@ -9,7 +9,7 @@ aquí; la lógica pura está en ``worldcup.pipeline``.
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import typer
@@ -22,8 +22,9 @@ from worldcup.data.download import (
     load_snapshot,
     save_snapshot,
 )
+from worldcup.data.football_data import FootballDataProvider
 from worldcup.data.historical import HistoricalMatch, fetch_martj42, parse_results_csv
-from worldcup.data.live_results import NormalizedMatch
+from worldcup.data.live_results import LiveResultsProvider, NormalizedMatch
 from worldcup.data.schedule import parse_openfootball
 from worldcup.data.triggers import CronTrigger, RefreshTrigger, WatchTrigger
 from worldcup.pipeline import (
@@ -35,12 +36,43 @@ from worldcup.pipeline import (
 from worldcup.simulation.bracket import load_annex_c
 
 _AnnexC = dict[frozenset[str], dict[str, str]]
+_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _load_dotenv() -> None:
+    """Carga ``_ROOT/.env`` (KEY=VALUE) sin pisar variables ya definidas."""
+    env_path = _ROOT / ".env"
+    if not env_path.exists():
+        return
+    for raw in env_path.read_text().splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 
 
 def _load_history(config: Config) -> list[HistoricalMatch]:
     dest = config.paths.data_raw / "results.csv"
     fetch_martj42(config.data.historical.results_url, dest)  # idempotente
     return parse_results_csv(dest.read_text())
+
+
+def _make_live_provider(config: Config) -> LiveResultsProvider:
+    """Construye el proveedor live según ``config.data.live.provider`` (fail-loud)."""
+    live = config.data.live
+    if live.provider == "api_football":
+        key = os.environ.get(live.api_key_env)
+        if not key:
+            raise typer.BadParameter(f"falta la variable de entorno {live.api_key_env}")
+        return APIFootballProvider(key, live.base_url, live.league_id, live.season)
+    if live.provider == "football_data":
+        fb = live.fallback
+        token = os.environ.get(fb.token_env)
+        if not token:
+            raise typer.BadParameter(f"falta la variable de entorno {fb.token_env}")
+        return FootballDataProvider(token, fb.base_url, fb.competition_code)
+    raise typer.BadParameter(f"proveedor live desconocido: {live.provider}")
 
 
 def _load_incoming(
@@ -55,12 +87,7 @@ def _load_incoming(
         return parse_openfootball(fetch_openfootball(config.data.schedule.url))
     if mode != "live":
         raise typer.BadParameter(f"modo desconocido: {mode}")
-    live = config.data.live
-    api_key = os.environ.get(live.api_key_env)
-    if not api_key:
-        raise typer.BadParameter(f"falta la variable de entorno {live.api_key_env}")
-    provider = APIFootballProvider(api_key, live.base_url, live.league_id, live.season)
-    return provider.get_schedule()
+    return _make_live_provider(config).get_schedule()
 
 
 def _run_once(
@@ -73,10 +100,12 @@ def _run_once(
     seed: int,
 ) -> str:
     snaps = config.data.snapshots
-    # Solo el modo live toca los punteros (lee previous, snapshotea, mueve latest).
-    # El replay (--snapshot) y el baseline (pre_tournament) son herméticos: previous=[],
-    # sin re-snapshotear ni mover los punteros (preserva determinismo y deltas live).
+    # Entrada: solo live lee `previous` (replay y baseline parten de []).
+    # Salida: solo el replay (--snapshot) es de solo-lectura. live y pre_tournament son
+    # corridas hacia adelante que snapshotean y mueven punteros — así el dashboard ve
+    # el baseline pre-torneo; el replay no clobberea el puntero live (determinismo).
     is_live = snapshot is None and mode == "live"
+    is_replay = snapshot is not None
     incoming = _load_incoming(config, mode, snapshot)
     previous = (
         (
@@ -91,11 +120,23 @@ def _run_once(
         else []
     )
     history = _load_history(config)
+    # Baseline pre-torneo: el Elo solo usa partidos ANTES del primer fixture (excluye
+    # los resultados del torneo en curso). Live usa el Elo actual.
+    history_cutoff: date | None = None
+    if mode == "pre_tournament" and incoming:
+        history_cutoff = min(m.kickoff_utc for m in incoming).date()
     result, reconciled = run_pipeline(
-        incoming, previous, history, config, annex_c, runs=runs, seed=seed
+        incoming,
+        previous,
+        history,
+        config,
+        annex_c,
+        runs=runs,
+        seed=seed,
+        history_cutoff=history_cutoff,
     )
     ts = snapshot or datetime.now(timezone.utc).strftime("%Y%m%dt%H%M")
-    if is_live:
+    if not is_replay:
         save_snapshot(
             reconciled,
             ts,
@@ -111,7 +152,7 @@ def _run_once(
         config.paths.data_processed,
         ts,
         groups=result.groups,
-        update_pointer=is_live,
+        update_pointer=not is_replay,
     )
     render_outputs(result, previous_probs, config.paths.figures, ts=ts)
     for match_id, anomaly in result.anomalies:
@@ -129,6 +170,7 @@ def main(
     watch: bool = False,
     interval: int | None = None,
 ) -> None:
+    _load_dotenv()  # carga la API key desde .env si existe (modo live)
     cfg = load_config(config)
     annex_c = load_annex_c(cfg.paths.data_raw / "annex_c_2026.json")
     resolved_runs = runs if runs is not None else cfg.simulation.runs

@@ -41,7 +41,9 @@ artefacto de probabilidades. Cierra el hilo pendiente: `reconcile` alimenta `bui
 - `live`: fetch schedule + resultados → `incoming`; `load_latest_snapshot` → `previous`;
   cargar `history`.
 - `--snapshot <ts>`: carga ese snapshot como `incoming` (reproducible).
-- `pre_tournament`: `incoming` = schedule sin resultados, `previous` vacío (baseline).
+- `pre_tournament`: `incoming` = schedule sin resultados, `previous` vacío, y el Elo se
+  ajusta solo con partidos ANTES del primer fixture (`history_cutoff`) — baseline limpio,
+  sin contaminarse con resultados del torneo en curso que trae el histórico.
 - Corre `run_pipeline` → `save_snapshot(reconciled)` + `write_probabilities` +
   `render_outputs`.
 - `--watch`: bucle fino sobre un `run_once` testeado, usando `triggers.RefreshTrigger`;

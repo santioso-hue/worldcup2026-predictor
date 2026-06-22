@@ -161,3 +161,39 @@ def test_run_pipeline_output_feeds_dashboard_prep(tmp_path: Path) -> None:
     table = prepare_group_table(run.groups, run.probabilities)
     assert len(table) == 12 and all(len(rows) == 4 for rows in table.values())
     assert prepare_team_detail(run.probabilities, next(iter(run.probabilities)))
+
+
+def test_run_pipeline_history_cutoff_excludes_in_tournament() -> None:
+    # El baseline excluye resultados en/posteriores al cutoff (torneo en curso):
+    # quitar la goleada del torneo baja el rating de A1.
+    pre = HistoricalMatch(
+        date=date(2025, 1, 1),
+        home_team="A1",
+        away_team="A2",
+        home_score=3,
+        away_score=0,
+        tournament="Friendly",
+        neutral=True,
+    )
+    in_tournament = HistoricalMatch(
+        date=date(2026, 6, 15),
+        home_team="A1",
+        away_team="A2",
+        home_score=5,
+        away_score=0,
+        tournament="FIFA World Cup",
+        neutral=True,
+    )
+    hist = [pre, in_tournament]
+    full, _ = run_pipeline(_backbone(), [], hist, CFG, ANNEX, runs=20, seed=1)
+    base, _ = run_pipeline(
+        _backbone(),
+        [],
+        hist,
+        CFG,
+        ANNEX,
+        runs=20,
+        seed=1,
+        history_cutoff=date(2026, 6, 11),
+    )
+    assert base.ratings["A1"] < full.ratings["A1"]

@@ -44,14 +44,19 @@ def run_pipeline(
     runs: int,
     seed: int,
     reference_date: date | None = None,
+    history_cutoff: date | None = None,
 ) -> tuple[PipelineResult, list[NormalizedMatch]]:
     """``reconcile`` → ``fit_elo`` → ``build_state`` → Monte Carlo (sin I/O).
 
     Cada equipo del backbone recibe un rating: el de ``fit_elo`` o, si no tiene
     histórico, ``initial_rating`` (``build_state`` exige rating para todos, fail-loud).
-    Devuelve el resultado y los matches reconciliados (para snapshotear).
+    ``history_cutoff`` (baseline pre-torneo) descarta los partidos en/posteriores a esa
+    fecha, para no contaminar el Elo con resultados del torneo en curso. Devuelve el
+    resultado y los matches reconciliados (para snapshotear).
     """
     rec = reconcile(previous, incoming)
+    if history_cutoff is not None:
+        history = [m for m in history if m.date < history_cutoff]
     fitted = fit_elo(history, config.elo, reference_date=reference_date)
     # El universo de equipos son los participantes de la fase de grupos (los 48 reales);
     # las llaves KO del backbone traen etiquetas de slot ("2A", "1E"), no selecciones.

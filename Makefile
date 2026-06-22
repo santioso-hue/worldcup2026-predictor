@@ -15,8 +15,7 @@ setup:  ## crea venv e instala deps (pyproject.toml)
 run:  ## pipeline completo en modo live: download -> recondiciona -> simula -> figuras
 	$(PY) scripts/run_pipeline.py --config config/config.yaml
 
-refresh:  ## baja nuevo snapshot y re-simula solo lo pendiente
-	$(PY) scripts/run_pipeline.py --config config/config.yaml --refresh
+refresh: run  ## re-simula con los últimos resultados (modo live; alias de run)
 
 watch:  ## loop: re-corre cada N segundos mientras hay partidos (uso durante el torneo)
 	$(PY) scripts/run_pipeline.py --config config/config.yaml --watch --interval 600
@@ -25,13 +24,13 @@ test:  ## pytest
 	$(BIN)/pytest
 
 lint:  ## ruff + black --check + mypy
-	$(BIN)/ruff check src tests
-	$(BIN)/black --check src tests
+	$(BIN)/ruff check src tests scripts app
+	$(BIN)/black --check src tests scripts app
 	$(BIN)/mypy src
 
 fmt:  ## black + ruff --fix
-	$(BIN)/black src tests
-	$(BIN)/ruff check --fix src tests
+	$(BIN)/black src tests scripts app
+	$(BIN)/ruff check --fix src tests scripts app
 
 clean:  ## borra venv y cachés (NUNCA borra data/raw)
 	rm -rf $(VENV) .pytest_cache .mypy_cache .ruff_cache
