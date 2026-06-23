@@ -67,8 +67,8 @@ def fetch_martj42(
 
     Idempotente salvo ``force``: si ``dest`` ya existe y no se fuerza, no re-descarga.
     Las corridas live hacia adelante fuerzan el refresco (el Elo debe absorber los
-    últimos resultados, no quedar congelado en una caché vieja); el replay reproducible
-    (``--snapshot``) usa la copia cacheada para ser determinista.
+    últimos resultados, no quedar congelado en una caché vieja); el replay
+    (``--snapshot``) usa la copia cacheada (reproduce dada esa misma caché).
     """
     import requests
 

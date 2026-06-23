@@ -1,9 +1,14 @@
 """CLI del pipeline completo: carga/descarga → reconcile → simula → snapshot + figuras.
 
-Modos: ``live`` (fetch del proveedor), ``--snapshot <ts>`` (replay reproducible) y
+Modos: ``live`` (fetch del proveedor), ``--snapshot <ts>`` (replay) y
 ``--mode pre_tournament`` (solo el schedule). ``--watch`` hace polling con
 ``WatchTrigger``; sin ``--watch`` es una sola corrida (modelo cron). Todo el I/O vive
 aquí; la lógica pura está en ``worldcup.pipeline``.
+
+El replay congela los *fixtures* (snapshot parquet) pero NO el histórico martj42
+(``results.csv``, caché compartida que las corridas live refrescan): reproduce
+exactamente dada la MISMA caché de histórico + semilla. Para reproducibilidad a prueba
+de refrescos habría que pinear el histórico junto al snapshot (pendiente).
 """
 
 from __future__ import annotations
@@ -103,10 +108,11 @@ def _run_once(
     seed: int,
 ) -> str:
     snaps = config.data.snapshots
-    # Entrada: solo live lee `previous` (replay y baseline parten de []).
-    # Salida: solo el replay (--snapshot) es de solo-lectura. live y pre_tournament son
-    # corridas hacia adelante que snapshotean y mueven punteros — así el dashboard ve
-    # el baseline pre-torneo; el replay no clobberea el puntero live (determinismo).
+    # El snapshot de reconcile (parquet + latest.txt) es el REGISTRO DE RESULTADOS LIVE:
+    # solo `live` lo escribe y solo `live` lo lee como `previous`. Si pre_tournament lo
+    # escribiera, una corrida live posterior lo tomaría como `previous` y reconciliaría
+    # fixtures de openfootball contra el feed live -> grupos corruptos. pre_tournament y
+    # replay igual escriben probabilities/figuras (dashboard), pero NO tocan esa cadena.
     is_live = snapshot is None and mode == "live"
     is_replay = snapshot is not None
     incoming = _load_incoming(config, mode, snapshot)
@@ -139,7 +145,10 @@ def _run_once(
         history_cutoff=history_cutoff,
     )
     ts = snapshot or datetime.now(timezone.utc).strftime("%Y%m%dt%H%M")
-    if not is_replay:
+    # El replay escribe sus salidas con sufijo _replay para NO pisar el artefacto curado
+    # del mismo ts (p.ej. una corrida live de 50k); el puntero live tampoco se mueve.
+    out_ts = f"{ts}_replay" if is_replay else ts
+    if is_live:  # solo live escribe la cadena de snapshots (parquet + latest.txt)
         save_snapshot(
             reconciled,
             ts,
@@ -153,15 +162,15 @@ def _run_once(
     write_probabilities(
         result.probabilities,
         config.paths.data_processed,
-        ts,
+        out_ts,
         groups=result.groups,
         update_pointer=not is_replay,
     )
-    render_outputs(result, previous_probs, config.paths.figures, ts=ts)
+    render_outputs(result, previous_probs, config.paths.figures, ts=out_ts)
     for match_id, anomaly in result.anomalies:
         typer.echo(f"anomalía: {match_id}: {anomaly}")
-    typer.echo(f"listo: snapshot {ts}, {len(result.probabilities)} equipos")
-    return ts
+    typer.echo(f"listo: snapshot {out_ts}, {len(result.probabilities)} equipos")
+    return out_ts
 
 
 def main(

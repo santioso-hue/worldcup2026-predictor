@@ -117,6 +117,21 @@ def test_write_and_load_probabilities_roundtrip(tmp_path: Path) -> None:
     assert load_latest_probabilities(tmp_path / "nope") is None  # sin puntero -> None
 
 
+def test_write_probabilities_is_byte_deterministic(tmp_path: Path) -> None:
+    # El artefacto JSON debe ser byte-estable e independiente del orden de inserción
+    # (PYTHONHASHSEED): el replay y el dashboard lo consumen. sort_keys lo garantiza.
+    probs_a = {"Zambia": {"champion": 0.1}, "Brazil": {"champion": 0.2}}
+    probs_b = {"Brazil": {"champion": 0.2}, "Zambia": {"champion": 0.1}}  # inverso
+    text_a = write_probabilities(
+        probs_a, tmp_path / "a", "20260101t0000", update_pointer=False
+    ).read_text()
+    text_b = write_probabilities(
+        probs_b, tmp_path / "b", "20260101t0000", update_pointer=False
+    ).read_text()
+    assert text_a == text_b  # mismos bytes pese a distinto orden de inserción
+    assert text_a.index('"Brazil"') < text_a.index('"Zambia"')  # claves ordenadas
+
+
 def test_write_probabilities_can_skip_pointer(tmp_path: Path) -> None:
     probs = {"A1": {"champion": 0.5}}
     # update_pointer=False (replay/baseline): escribe el JSON pero no mueve latest.json.

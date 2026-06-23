@@ -62,16 +62,18 @@ elo:
                                   # 18m sobre-pesaba la forma reciente; 48m minimiza
                                   # log-loss out-of-sample 2023+ sin perder recencia)
   base_lambda: 1.35               # goles esperados a diff Elo 0 [ref:Hicruben]
-  elo_per_goal_denominator: 400.0 # +1 gol esperado por 400 Elo  [ref:Hicruben]
+  elo_per_goal_denominator: 300.0 # +1 gol esperado por 300 Elo (afinado vía backtest:
+                                  # 300 da predicciones más nítidas que el default 400)
   lambda_min: 0.3                 # clip inferior de goles esp.  [ref:Hicruben]
   lambda_max: 3.5                 # clip superior de goles esp.  [ref:Hicruben]
-  k_factors:                      # importancia del partido      [ref:Hicruben]
-    world_cup: 55.0
-    continental: 50.0             # Euro, Copa América, etc.
-    world_cup_qualifier: 40.0
-    nations_league: 32.0
-    default: 28.0
-    friendly: 18.0
+  k_factors:                      # importancia (afinado vía backtest: ×1.2 sobre defaults
+                                  # Hicruben; minimiza log-loss out-of-sample 2023+)
+    world_cup: 66.0
+    continental: 60.0             # Euro, Copa América, etc.
+    world_cup_qualifier: 48.0
+    nations_league: 38.4
+    default: 33.6
+    friendly: 21.6
   goal_margin:                    # multiplicador por margen (eloratings.net)
     two_goal: 1.5                 # |d| == 2
     offset: 11.0                  # |d| >= 3 -> (offset + |d|) / divisor

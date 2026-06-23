@@ -24,9 +24,10 @@ python scripts/run_pipeline.py --mode pre_tournament --runs 50000
 ## Comandos
 
 ```bash
-# Predicción puntual de un partido (1X2), usa el histórico martj42
+# Predicción puntual de un partido (1X2), usa el histórico martj42.
+# Los nombres deben coincidir con martj42 (p.ej. "United States", no "USA").
 python scripts/predict_match.py "Brazil" "France"
-python scripts/predict_match.py "USA" "Mexico" --host "USA"
+python scripts/predict_match.py "United States" "Mexico" --host "United States"
 
 # Reproducir EXACTAMENTE un estado (para grabar un video sin que cambie)
 python scripts/run_pipeline.py --snapshot 20260616t1830 --runs 50000

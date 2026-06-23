@@ -1,8 +1,11 @@
 """CLI de predicción puntual: 1X2 de un partido desde los ratings Elo del histórico.
 
+Los nombres deben coincidir con el histórico martj42 (p.ej. "United States", no "USA";
+"DR Congo", no "Congo DR"). Un nombre desconocido cae al rating por defecto y avisa.
+
 Ejemplos:
     python scripts/predict_match.py "Brazil" "France"
-    python scripts/predict_match.py "USA" "Mexico" --host "USA"
+    python scripts/predict_match.py "United States" "Mexico" --host "United States"
 """
 
 from __future__ import annotations
@@ -26,6 +29,22 @@ def main(
     dest = cfg.paths.data_raw / "results.csv"
     fetch_martj42(cfg.data.historical.results_url, dest)  # idempotente
     history = parse_results_csv(dest.read_text())
+    known = {m.home_team for m in history} | {m.away_team for m in history}
+    for label, team in (("local", home), ("visitante", away)):
+        if team not in known:
+            typer.secho(
+                f"aviso: '{team}' ({label}) no está en el histórico; se usa el rating "
+                f"por defecto ({cfg.elo.initial_rating:.0f}). Revisa el nombre "
+                "(p.ej. 'United States', no 'USA').",
+                err=True,
+                fg=typer.colors.YELLOW,
+            )
+    if host is not None and host not in (home, away):
+        typer.secho(
+            f"aviso: host '{host}' no coincide con ningún equipo; sin ventaja de sede.",
+            err=True,
+            fg=typer.colors.YELLOW,
+        )
     outcome = predict_match(home, away, history, cfg, host=host)
     typer.echo(
         f"{home} {outcome.home_win:.1%}  ·  "

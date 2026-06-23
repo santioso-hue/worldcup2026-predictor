@@ -18,7 +18,7 @@ def test_loads_real_config() -> None:
     assert cfg.project.mode is TournamentMode.live
     assert cfg.data.live.league_id == 1
     assert cfg.data.live.season == 2026
-    assert cfg.elo.k_factors["world_cup"] == 55.0
+    assert cfg.elo.k_factors["world_cup"] == 66.0  # afinado vía backtest (×1.2)
     assert cfg.elo.goal_margin.two_goal == 1.5
     assert cfg.elo.goal_margin.offset == 11.0
     assert cfg.elo.goal_margin.divisor == 8.0

@@ -60,7 +60,11 @@ def run_pipeline(
     fitted = fit_elo(history, config.elo, reference_date=reference_date)
     # El universo de equipos son los participantes de la fase de grupos (los 48 reales);
     # las llaves KO del backbone traen etiquetas de slot ("2A", "1E"), no selecciones.
-    teams = {team for members in group_teams(rec.matches).values() for team in members}
+    # `sorted` -> orden determinista de equipos (independiente de PYTHONHASHSEED), para
+    # que el artefacto JSON sea byte-reproducible entre corridas/procesos.
+    teams = sorted(
+        {team for members in group_teams(rec.matches).values() for team in members}
+    )
     ratings = {t: fitted.get(t, config.elo.initial_rating) for t in teams}
     # Bono de sede: las anfitrionas reciben elo.host_advantage en sus partidos.
     hosts = set(config.simulation.hosts)
@@ -74,6 +78,7 @@ def run_pipeline(
         runs=runs,
         seed=seed,
         extra_time_total_goals=config.simulation.extra_time_total_goals,
+        elo_denominator=config.elo.elo_per_goal_denominator,
         host_advantage=host_advantage,
     )
     result = PipelineResult(
@@ -134,7 +139,8 @@ def write_probabilities(
     out.mkdir(parents=True, exist_ok=True)
     path = out / f"probabilities_{ts}.json"
     payload = {"timestamp": ts, "groups": groups or {}, "probabilities": probabilities}
-    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
+    # sort_keys -> bytes estables del artefacto (el dashboard/replay lo consumen).
+    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True))
     if update_pointer:
         (out / latest_pointer).write_text(json.dumps({"timestamp": ts}))
     return path
