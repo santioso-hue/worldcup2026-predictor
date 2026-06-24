@@ -8,16 +8,14 @@ Dos responsabilidades (data/raw/SOURCES.md, metodología §5.1):
    intento de modificar un resultado YA bloqueado, **conservar el último snapshot
    válido** en vez de degradar la predicción.
 
-También canonicaliza nombres de selección (alias entre proveedores), recomputando el
-``match_id`` para que la unión backbone <-> live siga alineada.
+La canonicalización de nombres entre proveedores vive en ``data/team_names.py``.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
 from .live_results import MatchStatus, NormalizedMatch, is_lockable
-from .schedule import make_match_id
 
 
 def validate_match(match: NormalizedMatch) -> list[str]:
@@ -84,11 +82,6 @@ def validate_match(match: NormalizedMatch) -> list[str]:
 def is_suspicious(match: NormalizedMatch) -> bool:
     """``True`` si el partido tiene algún problema de validación."""
     return bool(validate_match(match))
-
-
-def validate_matches(matches: list[NormalizedMatch]) -> dict[str, list[str]]:
-    """Mapa ``match_id -> problemas`` para los partidos con algún problema."""
-    return {m.match_id: issues for m in matches if (issues := validate_match(m))}
 
 
 @dataclass(frozen=True)
@@ -182,35 +175,3 @@ def reconcile(
             result.append(prev)
 
     return ReconcileResult(matches=result, anomalies=anomalies)
-
-
-def canonicalize_name(name: str, aliases: dict[str, str]) -> str:
-    """Devuelve el nombre canónico de una selección según el mapa de alias."""
-    return aliases.get(name, name)
-
-
-def apply_team_aliases(
-    matches: list[NormalizedMatch], aliases: dict[str, str]
-) -> list[NormalizedMatch]:
-    """Canonicaliza nombres de equipo y recomputa el ``match_id`` en consecuencia.
-
-    El ``match_id`` codifica la fecha UTC del kickoff en sus primeros 10 caracteres
-    (``YYYY-MM-DD``), así que se reconstruye de forma consistente tras renombrar.
-    """
-    out: list[NormalizedMatch] = []
-    for m in matches:
-        home = canonicalize_name(m.home_team, aliases)
-        away = canonicalize_name(m.away_team, aliases)
-        if home == m.home_team and away == m.away_team:
-            out.append(m)
-            continue
-        date = m.match_id[:10]
-        out.append(
-            replace(
-                m,
-                home_team=home,
-                away_team=away,
-                match_id=make_match_id(date, home, away),
-            )
-        )
-    return out

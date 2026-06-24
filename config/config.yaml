@@ -13,7 +13,6 @@ project:
 
 paths:
   data_raw: data/raw               # INMUTABLE (snapshots + SOURCES.md)
-  data_interim: data/interim       # limpio
   data_processed: data/processed   # features listos
   figures: outputs/figures
   videos: outputs/videos
@@ -36,7 +35,6 @@ data:
     competition_code: WC             # código de competición (Mundial)
     token_env: FOOTBALL_DATA_TOKEN   # el token va en .env, NUNCA en este archivo
     poll_interval_seconds: 900       # 15 min entre sondeos (free: 10 req/min)
-    daily_request_budget: 100        # holgado: cada corrida = 1 request
   snapshots:
     dir: data/raw
     filename_pattern: "results_{ts}.parquet"   # ts = YYYYMMDDtHHMM

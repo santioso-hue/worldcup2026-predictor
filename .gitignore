@@ -16,9 +16,7 @@ build/
 
 # Datos derivados (regenerables). data/raw/ SÍ se versiona: es el registro
 # reproducible de "qué sabía el modelo y cuándo".
-data/interim/*
 data/processed/*
-!data/interim/.gitkeep
 !data/processed/.gitkeep
 
 # Outputs: versionar solo los "finales" a mano; el resto se ignora.

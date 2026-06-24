@@ -33,7 +33,6 @@ class ProjectConfig(_Base):
 
 class PathsConfig(_Base):
     data_raw: Path
-    data_interim: Path
     data_processed: Path
     figures: Path
     videos: Path
@@ -56,7 +55,6 @@ class LiveConfig(_Base):
     competition_code: str
     token_env: str
     poll_interval_seconds: int = Field(gt=0)
-    daily_request_budget: int = Field(gt=0)
 
 
 class SnapshotsConfig(_Base):

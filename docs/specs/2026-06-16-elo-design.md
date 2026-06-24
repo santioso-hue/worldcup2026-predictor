@@ -70,8 +70,8 @@ alimenta el mapeo Elo→goles de Dixon-Coles (Fase 3) y la simulación condicion
 ## Nombres de equipo
 
 martj42 es consistente internamente. El puente a nombres 2026 (p.ej. "USA" ↔ "United
-States") reutiliza `clean.apply_team_aliases` y se ejerce al consumir ratings en la
-simulación (Fase 4). Fase 2 ajusta sobre los nombres de martj42.
+States") vive en `data.team_names` (canonical_openfootball_team / canonical_footballdata_team)
+y se aplica al parsear el schedule y el feed live. Fase 2 ajusta sobre los nombres de martj42.
 
 ## Tests (TDD — primero los tests)
 

@@ -1,6 +1,6 @@
 """Interfaz estable de modelo de partido + helpers de marcador.
 
-Cualquier modelo (Dixon-Coles primario, XGBoost alternativo) implementa
+Cualquier modelo (hoy, Dixon-Coles) implementa
 :class:`MatchModel.score_matrix` — la distribución conjunta de marcadores. De ahí se
 derivan las probabilidades 1X2 (``outcome_proba``) y el muestreo de marcadores para la
 simulación (``sample_scoreline``). El resto del proyecto depende solo de esta interfaz.

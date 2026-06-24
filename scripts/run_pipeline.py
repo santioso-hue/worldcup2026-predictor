@@ -14,7 +14,7 @@ de refrescos habría que pinear el histórico junto al snapshot (pendiente).
 from __future__ import annotations
 
 import os
-from datetime import date, datetime, timezone
+from datetime import date
 from pathlib import Path
 
 import typer
@@ -24,6 +24,7 @@ from worldcup.data.download import (
     fetch_openfootball,
     load_latest_snapshot,
     load_snapshot,
+    make_timestamp,
     save_snapshot,
 )
 from worldcup.data.football_data import FootballDataProvider
@@ -147,7 +148,7 @@ def _run_once(
         seed=seed,
         history_cutoff=history_cutoff,
     )
-    ts = snapshot or datetime.now(timezone.utc).strftime("%Y%m%dt%H%M")
+    ts = snapshot or make_timestamp()
     # El replay escribe sus salidas con sufijo _replay para NO pisar el artefacto curado
     # del mismo ts (p.ej. una corrida live de 50k); el puntero live tampoco se mueve.
     out_ts = f"{ts}_replay" if is_replay else ts

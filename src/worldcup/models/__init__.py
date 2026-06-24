@@ -1,1 +1,1 @@
-"""Modelos de partido: interfaz MatchModel, Dixon-Coles (primario), XGBoost (alt)."""
+"""Modelos de partido: interfaz MatchModel y Dixon-Coles (el modelo del proyecto)."""

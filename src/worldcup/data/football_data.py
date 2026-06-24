@@ -181,7 +181,6 @@ class FootballDataProvider(LiveResultsProvider):
         self._competition = competition_code
         self._session = session
         self._timeout = timeout
-        self.request_count = 0
 
     @property
     def name(self) -> str:
@@ -201,7 +200,6 @@ class FootballDataProvider(LiveResultsProvider):
         headers = {"X-Auth-Token": self._token}
         resp = session.get(url, headers=headers, params=params, timeout=self._timeout)
         resp.raise_for_status()
-        self.request_count += 1
         matches: list[dict] = resp.json().get("matches", [])
         return matches
 

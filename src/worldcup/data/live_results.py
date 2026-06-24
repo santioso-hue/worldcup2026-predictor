@@ -64,7 +64,7 @@ def normalize_status(provider: str, raw_code: str) -> MatchStatus:
     provider:
         Clave del proveedor (``"football_data"``).
     raw_code:
-        Código tal cual lo devuelve la API (p.ej. ``"FT"``, ``"IN_PLAY"``).
+        Código tal cual lo devuelve la API (p.ej. ``"FINISHED"``, ``"IN_PLAY"``).
 
     Returns
     -------
@@ -183,9 +183,9 @@ def is_lockable(match: NormalizedMatch) -> bool:
 class LiveResultsProvider(ABC):
     """Interfaz estable para cualquier fuente de resultados (live o fallback).
 
-    Cualquier cliente (football-data.org, openfootball, worldcup26) la implementa
-    devolviendo SIEMPRE :class:`NormalizedMatch`. El resto del proyecto depende solo de
-    esta interfaz.
+    Cualquier cliente (football-data.org, openfootball) la implementa devolviendo
+    siempre :class:`NormalizedMatch`; el resto del proyecto depende solo de esta
+    interfaz.
 
     Política de uso (SOURCES.md): polling **solo por ventanas** con partidos en juego,
     cada 10–15 min; cachear lo que cambia lento. Nunca polling continuo.
@@ -202,7 +202,7 @@ class LiveResultsProvider(ABC):
 
     @abstractmethod
     def get_live_fixtures(self) -> list[NormalizedMatch]:
-        """Devuelve los partidos actualmente en juego (1 llamada, ``live=all``)."""
+        """Devuelve los partidos actualmente en juego (status IN_PLAY/PAUSED)."""
 
     @abstractmethod
     def get_finished_results(

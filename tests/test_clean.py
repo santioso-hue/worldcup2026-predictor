@@ -4,11 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from worldcup.data.clean import (
-    apply_team_aliases,
-    reconcile,
-    validate_match,
-)
+from worldcup.data.clean import reconcile, validate_match
 from worldcup.data.live_results import MatchStatus, NormalizedMatch
 
 UTC = timezone.utc
@@ -168,25 +164,3 @@ def test_partial_feed_preserves_missing_matches() -> None:
     res = reconcile(prev, inc)
     ids = {m.match_id for m in res.matches}
     assert ids == {"a", "b"}  # "b" se conserva aunque no vino en el feed
-
-
-# --- canonicalización -------------------------------------------------------
-
-
-def test_apply_team_aliases_recomputes_match_id() -> None:
-    m = _m(
-        "2026-06-15-usa-vs-mexico",
-        home_team="USA",
-        away_team="Mexico",
-    )
-    out = apply_team_aliases([m], {"USA": "United States"})
-    assert out[0].home_team == "United States"
-    assert out[0].match_id == "2026-06-15-united-states-vs-mexico"
-
-
-def test_apply_team_aliases_noop_preserves_match() -> None:
-    # Sin alias coincidente: pass-through (mismo objeto, mismo match_id).
-    m = _m("2026-06-15-usa-vs-mexico", home_team="USA", away_team="Mexico")
-    out = apply_team_aliases([m], {"Brazil": "Brasil"})
-    assert out[0] is m
-    assert out[0].match_id == "2026-06-15-usa-vs-mexico"
