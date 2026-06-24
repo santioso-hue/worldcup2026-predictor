@@ -50,9 +50,12 @@ elo:
   initial_rating: 1500.0          # rating base para equipos sin historia
   home_advantage: 75.0            # bono Elo de localía         [ref:Hicruben]
   host_advantage: 37.5            # bono de sede (Mundial)      [ref:Hicruben]
-  recency_half_life_months: 48.0  # vida media del peso temporal (afinado vía backtest:
-                                  # 18m sobre-pesaba la forma reciente; 48m minimiza
-                                  # log-loss out-of-sample 2023+ sin perder recencia)
+  recency_half_life_months: 48.0  # vida media del peso temporal (forma vs reputación).
+                                  # OJO: el backtest full-history prefiere half-lifes muy
+                                  # largos (240m+) por menor log-loss POR PARTIDO, pero eso
+                                  # sobre-concentra la prob. de campeón (Argentina ~30%, poco
+                                  # realista). 48m es la decisión de REALISMO de torneo, no
+                                  # solo de log-loss de partido. [decidido con el usuario]
   base_lambda: 1.35               # goles esperados a diff Elo 0 [ref:Hicruben]
   elo_per_goal_denominator: 300.0 # +1 gol esperado por 300 Elo (afinado vía backtest:
                                   # 300 da predicciones más nítidas que el default 400)
@@ -94,4 +97,8 @@ simulation:
 # ---------------------------------------------------------------------------
 evaluation:
   burn_in_matches: 150       # partidos de calentamiento antes de evaluar [ref:Hicruben]
-  history_window_days: 2920  # ventana de refit del backtest (~8 años; recencia ~0 más allá)
+  history_window_days: 36500 # ventana de refit del backtest. Debe ser >> recency_half_life:
+                              # con half-life 48m, 8 años (lo previo) truncaba ~25% de peso
+                              # en el borde y subestimaba a las potencias. 36500 d (~100 a)
+                              # es full-history efectiva -> el backtest evalúa el MISMO Elo
+                              # que producción (que usa todo el histórico). [sync backtest<->prod]

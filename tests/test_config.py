@@ -24,7 +24,7 @@ def test_loads_real_config() -> None:
     assert cfg.elo.goal_margin.offset == 11.0
     assert cfg.elo.goal_margin.divisor == 8.0
     assert cfg.dixon_coles.max_goals == 8
-    assert cfg.evaluation.history_window_days == 2920
+    assert cfg.evaluation.history_window_days == 36500
 
 
 def test_missing_file_raises() -> None:

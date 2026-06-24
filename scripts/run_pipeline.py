@@ -29,7 +29,7 @@ from worldcup.data.download import (
 from worldcup.data.football_data import FootballDataProvider
 from worldcup.data.historical import HistoricalMatch, fetch_martj42, parse_results_csv
 from worldcup.data.live_results import LiveResultsProvider, NormalizedMatch
-from worldcup.data.schedule import parse_openfootball
+from worldcup.data.schedule import parse_openfootball, validate_schedule
 from worldcup.data.triggers import CronTrigger, RefreshTrigger, WatchTrigger
 from worldcup.pipeline import (
     load_latest_probabilities,
@@ -85,7 +85,17 @@ def _load_incoming(
             snapshot, snaps.dir, filename_pattern=snaps.filename_pattern
         )
     if mode == "pre_tournament":
-        return parse_openfootball(fetch_openfootball(config.data.schedule.url))
+        # El backbone openfootball trae los 104 partidos (72 grupo + 32 KO con etiquetas
+        # de slot): validamos la estructura y abortamos ruidosamente si está incompleta,
+        # en vez de simular un torneo roto. (El feed live tiene otra forma: no se valida
+        # aquí porque omite los 32 slots KO sin resolver.)
+        schedule = parse_openfootball(fetch_openfootball(config.data.schedule.url))
+        issues = validate_schedule(schedule)
+        if issues:
+            raise typer.BadParameter(
+                "schedule openfootball inválido: " + "; ".join(issues)
+            )
+        return schedule
     if mode != "live":
         raise typer.BadParameter(f"modo desconocido: {mode}")
     return _make_live_provider(config).get_schedule()
