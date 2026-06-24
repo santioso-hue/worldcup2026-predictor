@@ -26,6 +26,7 @@ import re
 from datetime import datetime, timedelta, timezone
 
 from .live_results import MatchStatus, NormalizedMatch
+from .team_names import canonical_openfootball_team
 
 # Estructura esperada del torneo (para validación; PROJECT.md §1, verificado).
 EXPECTED_GROUPS = 12
@@ -138,8 +139,10 @@ def parse_match(raw: dict, source: str = "openfootball") -> NormalizedMatch:
         Fixture normalizado. ``FINISHED`` si trae ``score.ft`` válido, si no
         ``SCHEDULED``.
     """
-    home = raw["team1"]
-    away = raw["team2"]
+    # Canonicalizamos al espacio de nombres de martj42 (mismo criterio que el cliente
+    # live) ANTES de derivar el match_id, para que el Elo y el bono de sede acierten.
+    home = canonical_openfootball_team(raw["team1"])
+    away = canonical_openfootball_team(raw["team2"])
     date = raw["date"]
     kickoff = _parse_kickoff(date, raw.get("time"))
 

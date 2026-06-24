@@ -24,6 +24,20 @@ def test_watch_max_ticks_zero_never_fires() -> None:
     assert sleeps == []
 
 
+def test_watch_survives_error_in_refresh() -> None:
+    # Un fallo transitorio (timeout/5xx/429) en un refresh NO debe matar el loop:
+    # se registra y se sigue al próximo tick.
+    ticks: list[int] = []
+
+    def on_refresh(tick: int) -> None:
+        ticks.append(tick)
+        if tick == 0:
+            raise RuntimeError("network blip")
+
+    WatchTrigger(600, max_ticks=3, sleep=lambda _s: None).run(on_refresh)
+    assert ticks == [0, 1, 2]  # siguió pese a la excepción en el tick 0
+
+
 def test_cron_fires_once() -> None:
     ticks: list[int] = []
     CronTrigger().run(ticks.append)

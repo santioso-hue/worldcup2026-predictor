@@ -18,6 +18,7 @@ re-simula lo pendiente. El trigger no sabe nada del modelo.
 
 from __future__ import annotations
 
+import sys
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable
@@ -68,7 +69,16 @@ class WatchTrigger(RefreshTrigger):
         while True:
             if self._max_ticks is not None and tick >= self._max_ticks:
                 return
-            on_refresh(tick)
+            # Daemon de sondeo: un blip de red (timeout, 5xx, 429 del rate-limit) NO
+            # debe matar el loop. Lo registramos y seguimos al próximo tick; un error
+            # persistente se ve repetido. (CronTrigger sí falla fuerte: hay scheduler.)
+            try:
+                on_refresh(tick)
+            except Exception as exc:  # noqa: BLE001 — sobrevivir a un fallo transitorio
+                print(
+                    f"refresh tick {tick} falló: {exc!r}; reintento al próximo tick",
+                    file=sys.stderr,
+                )
             tick += 1
             if self._max_ticks is not None and tick >= self._max_ticks:
                 return

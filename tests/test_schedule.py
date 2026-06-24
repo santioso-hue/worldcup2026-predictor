@@ -127,6 +127,16 @@ def test_missing_time_falls_back_to_midnight_utc() -> None:
     assert (m.kickoff_utc.hour, m.kickoff_utc.minute) == (0, 0)
 
 
+def test_parse_match_canonicalizes_team_names_to_martj42() -> None:
+    # openfootball dice "USA"; el Elo (martj42) lo conoce como "United States". Sin
+    # canonicalizar, el baseline pre_tournament lo trataría como equipo sin histórico.
+    m = parse_match(
+        {"team1": "USA", "team2": "B", "date": "2026-06-20", "group": "Group A"}
+    )
+    assert m.home_team == "United States"
+    assert "united-states" in m.match_id
+
+
 def test_present_but_unparseable_time_raises() -> None:
     # Con time presente pero offset no reconocido: fail loud (no medianoche silenciosa).
     with pytest.raises(ValueError):

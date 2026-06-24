@@ -151,7 +151,13 @@ def fit_elo(
     ratings: dict[str, float] = {}
     init = cfg.initial_rating
     default_k = cfg.k_factors["default"]
-    ordered = sorted(matches, key=lambda m: (m.date, m.home_team, m.away_team))
+    # Incluimos el marcador en la clave: dos filas con misma fecha+equipos pero distinto
+    # resultado (ocurre en martj42) se ordenan de forma reproducible -> el invariante
+    # "independiente del orden de entrada" se cumple aun con claves duplicadas.
+    ordered = sorted(
+        matches,
+        key=lambda m: (m.date, m.home_team, m.away_team, m.home_score, m.away_score),
+    )
     for m in ordered:
         r_home = ratings.get(m.home_team, init)
         r_away = ratings.get(m.away_team, init)

@@ -171,7 +171,7 @@ def main(
     snapshot: str | None = None,
     runs: int | None = None,
     seed: int | None = None,
-    mode: str = "live",
+    mode: str | None = None,
     watch: bool = False,
     interval: int | None = None,
 ) -> None:
@@ -180,6 +180,8 @@ def main(
     annex_c = load_annex_c(cfg.paths.data_raw / "annex_c_2026.json")
     resolved_runs = runs if runs is not None else cfg.simulation.runs
     resolved_seed = seed if seed is not None else cfg.project.seed
+    # mode cae a config.yaml (única fuente, PROJECT.md §9) si no se pasa por CLI.
+    resolved_mode = mode if mode is not None else cfg.project.mode.value
     resolved_interval = (
         interval if interval is not None else cfg.data.live.poll_interval_seconds
     )
@@ -188,7 +190,7 @@ def main(
         _run_once(
             cfg,
             annex_c,
-            mode=mode,
+            mode=resolved_mode,
             snapshot=snapshot,
             runs=resolved_runs,
             seed=resolved_seed,

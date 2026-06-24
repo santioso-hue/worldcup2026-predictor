@@ -117,6 +117,14 @@ def test_fit_elo_is_order_independent_and_deterministic() -> None:
     assert fit_elo(matches, ELO) == fit_elo(list(reversed(matches)), ELO)
 
 
+def test_fit_elo_order_independent_with_duplicate_date_teams() -> None:
+    # Misma fecha+equipos, marcadores distintos (ocurre en martj42): el orden de entrada
+    # NO debe cambiar el resultado (el marcador desempata la clave de orden).
+    a = _hm(date(1974, 2, 17), "Tahiti", "New Caledonia", 2, 1)
+    b = _hm(date(1974, 2, 17), "Tahiti", "New Caledonia", 1, 2)
+    assert fit_elo([a, b], ELO) == fit_elo([b, a], ELO)
+
+
 def test_fit_elo_bigger_margin_moves_more() -> None:
     narrow = fit_elo([_hm(date(2026, 6, 16), "A", "B", 1, 0)], ELO)
     blowout = fit_elo([_hm(date(2026, 6, 16), "A", "B", 5, 0)], ELO)

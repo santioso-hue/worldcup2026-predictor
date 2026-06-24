@@ -29,3 +29,20 @@ def canonical_footballdata_team(name: str) -> str:
     Identidad si no hay alias (la mayoría de selecciones coinciden ya).
     """
     return _FOOTBALLDATA_TO_CANONICAL.get(name, name)
+
+
+# openfootball/worldcup.json -> martj42. Verificado el 24 jun 2026 contra el schedule
+# real del WC2026: 2 de las 48 difieren; las otras 46 coinciden con martj42.
+_OPENFOOTBALL_TO_CANONICAL: dict[str, str] = {
+    "USA": "United States",
+    "Bosnia & Herzegovina": "Bosnia and Herzegovina",
+}
+
+
+def canonical_openfootball_team(name: str) -> str:
+    """Nombre de openfootball al canónico de martj42 (identidad si no hay alias).
+
+    Sin esto, el baseline pre_tournament caería al rating por defecto (1500) para esas
+    selecciones y 'USA' (anfitrión) no recibiría el bono de sede.
+    """
+    return _OPENFOOTBALL_TO_CANONICAL.get(name, name)
