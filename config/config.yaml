@@ -30,21 +30,13 @@ data:
   schedule:                 # backbone de fixtures 2026
     source: openfootball/worldcup.json
     url: https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json
-  live:
-    provider: football_data  # primario (free, cubre WC2026; api_football free no llega a 2026)
-    base_url: https://v3.football.api-sports.io
-    league_id: 1            # World Cup (verificado API-Football v3)
-    season: 2026
-    api_key_env: API_FOOTBALL_KEY    # la KEY va en .env, NUNCA en este archivo
-    poll_interval_seconds: 900       # 15 min: ~48 req/día (cómodo bajo 100)
-    daily_request_budget: 100        # tier free
-    fallback:               # parámetros de conexión de football-data.org (proveedor activo)
-      # football-data.org v4 (free) cubre WC2026 sin límite de temporada; es el
-      # proveedor primario (live.provider arriba). Auth por header X-Auth-Token.
-      provider: football_data
-      base_url: https://api.football-data.org/v4
-      competition_code: WC
-      token_env: FOOTBALL_DATA_TOKEN
+  live:                     # football-data.org v4: free, cubre WC2026 sin límite de temporada
+    provider: football_data
+    base_url: https://api.football-data.org/v4
+    competition_code: WC             # código de competición (Mundial)
+    token_env: FOOTBALL_DATA_TOKEN   # el token va en .env, NUNCA en este archivo
+    poll_interval_seconds: 900       # 15 min entre sondeos (free: 10 req/min)
+    daily_request_budget: 100        # holgado: cada corrida = 1 request
   snapshots:
     dir: data/raw
     filename_pattern: "results_{ts}.parquet"   # ts = YYYYMMDDtHHMM

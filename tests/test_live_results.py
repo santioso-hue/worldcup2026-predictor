@@ -17,7 +17,7 @@ from worldcup.data.live_results import (
 def _match(**kw: object) -> NormalizedMatch:
     base: dict[str, object] = dict(
         match_id="WC2026-1",
-        source="api_football",
+        source="football_data",
         source_match_id="123",
         kickoff_utc=datetime(2026, 6, 11, 19, 0, tzinfo=timezone.utc),
         home_team="Mexico",
@@ -29,18 +29,17 @@ def _match(**kw: object) -> NormalizedMatch:
     return NormalizedMatch(**base)  # type: ignore[arg-type]
 
 
-def test_status_mapping_both_providers() -> None:
-    assert normalize_status("api_football", "FT") is MatchStatus.FINISHED
-    assert normalize_status("api_football", "1H") is MatchStatus.IN_PLAY
-    assert normalize_status("api_football", "NS") is MatchStatus.SCHEDULED
+def test_status_mapping_football_data() -> None:
     assert normalize_status("football_data", "FINISHED") is MatchStatus.FINISHED
     assert normalize_status("football_data", "IN_PLAY") is MatchStatus.IN_PLAY
+    assert normalize_status("football_data", "TIMED") is MatchStatus.SCHEDULED
+    assert normalize_status("football_data", "POSTPONED") is MatchStatus.NOT_PLAYED
 
 
 def test_unknown_status_raises_not_guesses() -> None:
     # Edge case: un código desconocido debe fallar, no bloquear un partido por error.
     with pytest.raises(KeyError):
-        normalize_status("api_football", "ZZ")
+        normalize_status("football_data", "ZZ")
 
 
 def test_decided_by_and_is_finished() -> None:

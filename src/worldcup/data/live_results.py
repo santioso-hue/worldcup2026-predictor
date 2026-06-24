@@ -1,9 +1,9 @@
 """Interfaz provider-agnostic para resultados live + esquema normalizado.
 
-Toda fuente live (API-Football primario, football-data.org fallback, openfootball,
-worldcup26) se accede tras :class:`LiveResultsProvider`, de modo que el modelo nunca
-sabe de qué API vienen los datos: se puede cambiar de proveedor sin tocar simulación
-ni viz (PROJECT.md §6, SOURCES.md).
+Toda fuente live (football-data.org, openfootball) se accede tras
+:class:`LiveResultsProvider`, de modo que el modelo nunca sabe de qué API vienen los
+datos: se puede cambiar de proveedor sin tocar simulación ni viz (PROJECT.md §6,
+SOURCES.md).
 
 Los mapeos de estado y los campos de marcador están **verificados** contra la doc
 oficial de cada proveedor (16 jun 2026). No inventamos columnas: cada campo de
@@ -38,29 +38,6 @@ class MatchStatus(str, Enum):
 
 
 # --- Mapeos raw -> normalizado (VERIFICADOS, ver SOURCES.md) -----------------
-# API-Football v3: campo `fixture.status.short`.
-APIFOOTBALL_STATUS: dict[str, MatchStatus] = {
-    "TBD": MatchStatus.SCHEDULED,
-    "NS": MatchStatus.SCHEDULED,
-    "1H": MatchStatus.IN_PLAY,
-    "HT": MatchStatus.IN_PLAY,
-    "2H": MatchStatus.IN_PLAY,
-    "ET": MatchStatus.IN_PLAY,
-    "BT": MatchStatus.IN_PLAY,
-    "P": MatchStatus.IN_PLAY,
-    "LIVE": MatchStatus.IN_PLAY,
-    "FT": MatchStatus.FINISHED,
-    "AET": MatchStatus.FINISHED,
-    "PEN": MatchStatus.FINISHED,
-    "AWD": MatchStatus.FINISHED,  # awarded (resultado técnico)
-    "WO": MatchStatus.FINISHED,  # walkover
-    "PST": MatchStatus.NOT_PLAYED,
-    "CANC": MatchStatus.NOT_PLAYED,
-    "ABD": MatchStatus.NOT_PLAYED,
-    "SUSP": MatchStatus.NOT_PLAYED,
-    "INT": MatchStatus.NOT_PLAYED,
-}
-
 # football-data.org v4: campo `match.status`.
 FOOTBALLDATA_STATUS: dict[str, MatchStatus] = {
     "SCHEDULED": MatchStatus.SCHEDULED,
@@ -75,7 +52,6 @@ FOOTBALLDATA_STATUS: dict[str, MatchStatus] = {
 }
 
 _STATUS_MAPS: dict[str, dict[str, MatchStatus]] = {
-    "api_football": APIFOOTBALL_STATUS,
     "football_data": FOOTBALLDATA_STATUS,
 }
 
@@ -86,7 +62,7 @@ def normalize_status(provider: str, raw_code: str) -> MatchStatus:
     Parameters
     ----------
     provider:
-        Clave del proveedor (``"api_football"`` o ``"football_data"``).
+        Clave del proveedor (``"football_data"``).
     raw_code:
         Código tal cual lo devuelve la API (p.ej. ``"FT"``, ``"IN_PLAY"``).
 
@@ -207,9 +183,9 @@ def is_lockable(match: NormalizedMatch) -> bool:
 class LiveResultsProvider(ABC):
     """Interfaz estable para cualquier fuente de resultados (live o fallback).
 
-    Cualquier cliente (API-Football, football-data.org, openfootball, worldcup26) la
-    implementa devolviendo SIEMPRE :class:`NormalizedMatch`. El resto del proyecto
-    depende solo de esta interfaz.
+    Cualquier cliente (football-data.org, openfootball, worldcup26) la implementa
+    devolviendo SIEMPRE :class:`NormalizedMatch`. El resto del proyecto depende solo de
+    esta interfaz.
 
     Política de uso (SOURCES.md): polling **solo por ventanas** con partidos en juego,
     cada 10–15 min; cachear lo que cambia lento. Nunca polling continuo.
@@ -218,7 +194,7 @@ class LiveResultsProvider(ABC):
     @property
     @abstractmethod
     def name(self) -> str:
-        """Clave del proveedor (p.ej. ``"api_football"``); usada en ``source``."""
+        """Clave del proveedor (p.ej. ``"football_data"``); usada en ``source``."""
 
     @abstractmethod
     def get_schedule(self) -> list[NormalizedMatch]:

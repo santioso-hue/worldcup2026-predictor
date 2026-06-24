@@ -65,7 +65,7 @@ fija `--snapshot <ts>`.
 Todas las fases están construidas, cada una revisada de forma adversarial y endurecida.
 
 - [x] **Fase 0** — Andamiaje: `pyproject.toml`, `Makefile`, `config/config.yaml`, CI, RNG.
-- [x] **Fase 1** — Datos + LIVE: `LiveResultsProvider`/`APIFootballProvider`, backbone de
+- [x] **Fase 1** — Datos + LIVE: `LiveResultsProvider`/`FootballDataProvider`, backbone de
   calendario (openfootball), snapshotting con timestamp, validación + reconciliación,
   `WatchTrigger`/`CronTrigger`.
 - [x] **Fase 2** — Elo dinámico: histórico martj42, multiplicador de margen eloratings.net,

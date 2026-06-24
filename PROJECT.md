@@ -89,7 +89,7 @@ worldcup2026-predictor/
 │   ├── rng.py                 # RNG sembrado central (úsalo SIEMPRE)
 │   ├── data/
 │   │   ├── download.py        # histórico (martj42) + resultados LIVE; snapshots con ts
-│   │   ├── live_results.py    # interfaz LiveResultsProvider + clientes (API-Football, etc.)
+│   │   ├── live_results.py    # interfaz LiveResultsProvider + cliente football-data.org
 │   │   ├── triggers.py        # RefreshTrigger: watch (ahora) -> cron / webhook (mejora)
 │   │   ├── clean.py
 │   │   └── schedule.py        # fixtures 2026: 12 grupos, mejores terceros
@@ -199,10 +199,9 @@ para comparar accuracy/log-loss en el backtest, no como default.
   ~45k+ partidos desde 1872). Base de Elo y backtest.
 - **Calendario WC2026:** `openfootball/worldcup.json` (fixtures, 12 grupos, sedes).
 - **Ranking FIFA:** opcional como prior de Elo inicial.
-- **Resultados live (REQUERIDO, no opcional):** primario **football-data.org** (v4, free
-  forever, cubre el WC2026 sin límite de temporada; auth `X-Auth-Token`): un solo GET a
-  `/competitions/WC/matches` trae los 104 partidos con su estado. Alternativo:
-  **API-Football** (api-sports.io) — pero su tier free NO llega a la temporada 2026.
+- **Resultados live (REQUERIDO, no opcional):** **football-data.org** (v4, free forever,
+  cubre el WC2026 sin límite de temporada; auth `X-Auth-Token`): un solo GET a
+  `/competitions/WC/matches` trae los 104 partidos con su estado.
   Schedule: **openfootball/worldcup.json**.
   La decisión completa, el presupuesto de requests y los puntos a verificar están en
   **`data/raw/SOURCES.md`** (léelo antes de codear el cliente).

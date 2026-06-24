@@ -80,7 +80,7 @@ def parse_footballdata_match(
     """Convierte un match de football-data.org v4 a :class:`NormalizedMatch` (puro).
 
     El ``match_id`` se deriva de la fecha UTC del kickoff + equipos (mismo ancla que el
-    backbone y API-Football, para unir feeds). En un KO por penales se codifican
+    backbone openfootball, para unir feeds). En un KO por penales se codifican
     ``pen_*`` desde ``score.winner`` y se refleja ``et_* = ft_*`` (ver módulo).
     """
     score = raw.get("score") or {}

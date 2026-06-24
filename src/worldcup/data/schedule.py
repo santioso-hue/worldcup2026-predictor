@@ -2,7 +2,7 @@
 
 Es la **espina dorsal** del torneo: los 104 partidos (72 de grupo + 32 de
 eliminatoria), los 12 grupos de 4 y la estructura del bracket. Los resultados live
-(API-Football) se adjuntan luego a estos fixtures por ``match_id``, de modo que un
+(football-data.org) se adjuntan luego a estos fixtures por ``match_id``, de modo que un
 cambio de proveedor no rompe la identidad de los partidos.
 
 Funciones **puras** (sin I/O): reciben el JSON ya cargado. La descarga vive en
@@ -63,7 +63,7 @@ def make_match_id(date: str, home: str, away: str) -> str:
     ----------
     date:
         Fecha ``"YYYY-MM-DD"``. Los llamadores usan la **fecha UTC del kickoff** para
-        que el id coincida entre proveedores (ver ``parse_match`` y ``api_football``).
+        que el id coincida entre proveedores (ver ``parse_match`` y ``football_data``).
     home, away:
         Nombres de las selecciones local y visitante.
 

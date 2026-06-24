@@ -20,7 +20,6 @@ from pathlib import Path
 import typer
 
 from worldcup.config import Config, load_config
-from worldcup.data.api_football import APIFootballProvider
 from worldcup.data.download import (
     fetch_openfootball,
     load_latest_snapshot,
@@ -67,20 +66,14 @@ def _load_history(
 
 
 def _make_live_provider(config: Config) -> LiveResultsProvider:
-    """Construye el proveedor live según ``config.data.live.provider`` (fail-loud)."""
+    """Construye el proveedor live (football-data.org) desde config (fail-loud)."""
     live = config.data.live
-    if live.provider == "api_football":
-        key = os.environ.get(live.api_key_env)
-        if not key:
-            raise typer.BadParameter(f"falta la variable de entorno {live.api_key_env}")
-        return APIFootballProvider(key, live.base_url, live.league_id, live.season)
-    if live.provider == "football_data":
-        fb = live.fallback
-        token = os.environ.get(fb.token_env)
-        if not token:
-            raise typer.BadParameter(f"falta la variable de entorno {fb.token_env}")
-        return FootballDataProvider(token, fb.base_url, fb.competition_code)
-    raise typer.BadParameter(f"proveedor live desconocido: {live.provider}")
+    if live.provider != "football_data":
+        raise typer.BadParameter(f"proveedor live desconocido: {live.provider}")
+    token = os.environ.get(live.token_env)
+    if not token:
+        raise typer.BadParameter(f"falta la variable de entorno {live.token_env}")
+    return FootballDataProvider(token, live.base_url, live.competition_code)
 
 
 def _load_incoming(

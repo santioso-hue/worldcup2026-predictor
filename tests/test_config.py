@@ -16,8 +16,9 @@ def test_loads_real_config() -> None:
     cfg = load_config(CONFIG_PATH)
     assert cfg.project.seed == 42
     assert cfg.project.mode is TournamentMode.live
-    assert cfg.data.live.league_id == 1
-    assert cfg.data.live.season == 2026
+    assert cfg.data.live.provider == "football_data"
+    assert cfg.data.live.competition_code == "WC"
+    assert cfg.data.live.token_env == "FOOTBALL_DATA_TOKEN"
     assert cfg.elo.k_factors["world_cup"] == 66.0  # afinado vía backtest (×1.2)
     assert cfg.elo.goal_margin.two_goal == 1.5
     assert cfg.elo.goal_margin.offset == 11.0

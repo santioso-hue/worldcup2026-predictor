@@ -7,6 +7,10 @@ __pycache__/
 .ruff_cache/
 .ipynb_checkpoints/
 
+# Artefactos de build (regenerables; no son fuente de verdad).
+build/
+*.egg-info/
+
 # Secretos: NUNCA commitear la API key (PROJECT.md §10)
 .env
 

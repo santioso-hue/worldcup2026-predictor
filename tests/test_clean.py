@@ -17,7 +17,7 @@ UTC = timezone.utc
 def _m(match_id: str, **kw: object) -> NormalizedMatch:
     base: dict[str, object] = dict(
         match_id=match_id,
-        source="api_football",
+        source="football_data",
         source_match_id=match_id,
         kickoff_utc=datetime(2026, 6, 11, 19, 0, tzinfo=UTC),
         home_team="A",

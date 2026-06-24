@@ -25,7 +25,7 @@ UTC = timezone.utc
 def _finished() -> NormalizedMatch:
     return NormalizedMatch(
         match_id="2026-07-19-argentina-vs-france",
-        source="api_football",
+        source="football_data",
         source_match_id="999",
         kickoff_utc=datetime(2026, 7, 19, 19, 0, tzinfo=UTC),
         home_team="Argentina",

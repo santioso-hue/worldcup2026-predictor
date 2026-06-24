@@ -50,22 +50,13 @@ class ScheduleConfig(_Base):
     url: str
 
 
-class FallbackConfig(_Base):
+class LiveConfig(_Base):
     provider: str
     base_url: str
     competition_code: str
     token_env: str
-
-
-class LiveConfig(_Base):
-    provider: str
-    base_url: str
-    league_id: int
-    season: int
-    api_key_env: str
     poll_interval_seconds: int = Field(gt=0)
     daily_request_budget: int = Field(gt=0)
-    fallback: FallbackConfig
 
 
 class SnapshotsConfig(_Base):
