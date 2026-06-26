@@ -13,13 +13,15 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
+import numpy as np
+
 from .config import Config
 from .data.clean import reconcile
 from .data.historical import HistoricalMatch
 from .data.live_results import NormalizedMatch
 from .data.schedule import group_teams
 from .features.elo import fit_elo
-from .models.base import MatchOutcome
+from .models.base import MatchOutcome, outcome_probabilities
 from .models.dixon_coles import DixonColesModel
 from .simulation.state import build_state, run_from_state
 
@@ -90,7 +92,7 @@ def run_pipeline(
     return result, rec.matches
 
 
-def predict_match(
+def predict_fixture(
     home: str,
     away: str,
     history: list[HistoricalMatch],
@@ -98,12 +100,13 @@ def predict_match(
     *,
     host: str | None = None,
     reference_date: date | None = None,
-) -> MatchOutcome:
-    """1X2 de un partido puntual desde los ratings Elo del histórico.
+) -> tuple[MatchOutcome, np.ndarray]:
+    """1X2 + matriz de marcadores Dixon-Coles de un partido (puro, sin I/O).
 
-    ``host`` aplica la ventaja de **sede del Mundial** (``elo.host_advantage``, no la
-    localía plena de un amistoso) al equipo anfitrión (``home`` o ``away``); en sede
-    neutral (``host=None``) no hay ventaja. Sin histórico se usa ``initial_rating``.
+    ``host`` aplica la ventaja de **sede del Mundial** (``elo.host_advantage``) al
+    anfitrión (``home`` o ``away``); en sede neutral no hay ventaja. Equipos sin
+    histórico usan ``initial_rating``. Devuelve el 1X2 y la matriz conjunta de
+    marcadores (para el heatmap), calculando la matriz una sola vez.
     """
     fitted = fit_elo(history, config.elo, reference_date=reference_date)
     rating_home = fitted.get(home, config.elo.initial_rating)
@@ -115,7 +118,28 @@ def predict_match(
     else:
         advantage = 0.0
     model = DixonColesModel(config.elo, config.dixon_coles)
-    return model.outcome_proba(rating_home, rating_away, advantage)
+    matrix = model.score_matrix(rating_home, rating_away, advantage)
+    return outcome_probabilities(matrix), matrix
+
+
+def predict_match(
+    home: str,
+    away: str,
+    history: list[HistoricalMatch],
+    config: Config,
+    *,
+    host: str | None = None,
+    reference_date: date | None = None,
+) -> MatchOutcome:
+    """1X2 de un partido puntual desde los ratings Elo del histórico.
+
+    Envoltura sobre :func:`predict_fixture` (devuelve solo el 1X2). ``host`` aplica la
+    ventaja de sede del Mundial al anfitrión; sin histórico se usa ``initial_rating``.
+    """
+    outcome, _ = predict_fixture(
+        home, away, history, config, host=host, reference_date=reference_date
+    )
+    return outcome
 
 
 # --- helpers de I/O finos (testeables con tmp_path, sin red) ---

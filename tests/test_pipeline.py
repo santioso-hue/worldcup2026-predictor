@@ -14,6 +14,7 @@ from worldcup.data.live_results import MatchStatus, NormalizedMatch
 from worldcup.pipeline import (
     load_latest_probabilities,
     load_latest_run,
+    predict_fixture,
     predict_match,
     render_outputs,
     run_pipeline,
@@ -105,6 +106,24 @@ def test_run_pipeline_excludes_knockout_slot_labels() -> None:
 def test_predict_match_outcome_sums_to_one() -> None:
     out = predict_match("A1", "A2", _HISTORY, CFG, host="A1")
     assert abs(out.home_win + out.draw + out.away_win - 1.0) < 1e-9
+
+
+def test_predict_fixture_returns_normalized_outcome_and_matrix() -> None:
+    outcome, matrix = predict_fixture("A1", "A2", _HISTORY, CFG)
+    assert abs(outcome.home_win + outcome.draw + outcome.away_win - 1.0) < 1e-9
+    assert matrix.ndim == 2 and matrix.shape[0] == matrix.shape[1]
+    assert abs(float(matrix.sum()) - 1.0) < 1e-6
+
+
+def test_predict_fixture_outcome_matches_predict_match() -> None:
+    outcome, _ = predict_fixture("A1", "A2", _HISTORY, CFG, host="A1")
+    assert outcome == predict_match("A1", "A2", _HISTORY, CFG, host="A1")
+
+
+def test_predict_fixture_host_advantage_helps_the_host() -> None:
+    neutral, _ = predict_fixture("A1", "A2", _HISTORY, CFG)
+    hosted, _ = predict_fixture("A1", "A2", _HISTORY, CFG, host="A1")
+    assert hosted.home_win > neutral.home_win
 
 
 def test_write_and_load_probabilities_roundtrip(tmp_path: Path) -> None:
