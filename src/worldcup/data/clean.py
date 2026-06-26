@@ -105,7 +105,7 @@ def _choose(
     if previous is not None and is_lockable(previous):
         # Resultado bloqueado: inmutable, incluida su resolución (prórroga/penales).
         # El entrante solo se acepta si conserva el marcador de 90' Y no CAMBIA ninguna
-        # fase ya conocida del previo (puede rellenar fases que antes eran None, p.ej.
+        # fase ya conocida del previo (puede rellenar fases que antes eran None, p. ej.
         # añadir el detalle de penales sobre un mismo 1-1).
         same_score = (
             incoming.status is MatchStatus.FINISHED

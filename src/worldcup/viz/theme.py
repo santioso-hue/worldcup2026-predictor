@@ -18,8 +18,8 @@ class ExportSpec:
     dpi: int = 150
 
 
-PORTRAIT = ExportSpec(1080, 1920)  # reel / short vertical
-LANDSCAPE = ExportSpec(1920, 1080)  # youtube / thumbnail horizontal
+PORTRAIT = ExportSpec(1080, 1920)  # vertical
+LANDSCAPE = ExportSpec(1920, 1080)  # horizontal
 
 
 @dataclass(frozen=True)

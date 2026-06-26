@@ -117,7 +117,7 @@ def test_flat_matches_wrapper_also_supported() -> None:
     assert fixtures[0].home_team == "Mexico"
 
 
-# --- regresiones del review: parsing de hora y validación de estructura -----
+# --- regresiones: parsing de hora y validación de estructura -----
 
 
 def test_missing_time_falls_back_to_midnight_utc() -> None:

@@ -6,7 +6,7 @@ datos: se puede cambiar de proveedor sin tocar simulación ni viz (PROJECT.md §
 SOURCES.md).
 
 Los mapeos de estado y los campos de marcador están **verificados** contra la doc
-oficial de cada proveedor (16 jun 2026). No inventamos columnas: cada campo de
+oficial de cada proveedor (16 jun 2026). Cada campo de
 :class:`NormalizedMatch` corresponde a un campo documentado. Ver tabla en SOURCES.md.
 
 Este módulo define SOLO la interfaz + el esquema + los mapeos (funciones puras). Los
@@ -64,7 +64,7 @@ def normalize_status(provider: str, raw_code: str) -> MatchStatus:
     provider:
         Clave del proveedor (``"football_data"``).
     raw_code:
-        Código tal cual lo devuelve la API (p.ej. ``"FINISHED"``, ``"IN_PLAY"``).
+        Código tal cual lo devuelve la API (p. ej. ``"FINISHED"``, ``"IN_PLAY"``).
 
     Returns
     -------
@@ -103,7 +103,7 @@ class NormalizedMatch:
     home_team / away_team:
         Nombres de selección (se canonicalizan en ``clean.py``).
     stage:
-        Fase/grupo, p.ej. ``"Group A"`` o ``"Round of 16"``.
+        Fase/grupo, p. ej. ``"Group A"`` o ``"Round of 16"``.
     status:
         Estado normalizado.
     ht_home/ht_away, ft_home/ft_away, et_home/et_away, pen_home/pen_away:
@@ -194,7 +194,7 @@ class LiveResultsProvider(ABC):
     @property
     @abstractmethod
     def name(self) -> str:
-        """Clave del proveedor (p.ej. ``"football_data"``); usada en ``source``."""
+        """Clave del proveedor (p. ej. ``"football_data"``); usada en ``source``."""
 
     @abstractmethod
     def get_schedule(self) -> list[NormalizedMatch]:

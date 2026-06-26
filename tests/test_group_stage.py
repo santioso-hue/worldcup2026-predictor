@@ -90,7 +90,7 @@ def test_standings_returns_overall_records() -> None:
 
 
 def test_standings_fails_loud_when_elo_missing_a_team() -> None:
-    # Sin empates (resultado claro): aun así falla up-front, no según el marcador.
+    # Sin empates (resultado claro): aun así falla de entrada, no según el marcador.
     matches = [
         PlayedMatch("A", "B", 3, 0),
         PlayedMatch("A", "C", 3, 0),

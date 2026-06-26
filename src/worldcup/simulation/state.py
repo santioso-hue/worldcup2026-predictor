@@ -9,7 +9,7 @@ Carlo solo simula lo pendiente, condicionado a esos locks (reconditioning live).
 Los partidos de eliminatoria se bloquean por **par de equipos** (``frozenset``), no por
 match-id: en eliminatoria directa dos selecciones se cruzan a lo sumo una vez, y la KO
 empieza con la fase de grupos cerrada (bracket determinista), así que el par identifica
-el cruce sin ambigüedad. Un partido sin ``time``/sin marcador simplemente no se bloquea.
+el cruce sin ambigüedad. Un partido sin ``time``/sin marcador no se bloquea.
 """
 
 from __future__ import annotations

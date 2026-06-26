@@ -1,6 +1,6 @@
 """CLI de predicción puntual: 1X2 de un partido desde los ratings Elo del histórico.
 
-Los nombres deben coincidir con el histórico martj42 (p.ej. "United States", no "USA";
+Los nombres deben coincidir con el histórico martj42 (p. ej. "United States", no "USA";
 "DR Congo", no "Congo DR"). Un nombre desconocido cae al rating por defecto y avisa.
 
 Ejemplos:
@@ -35,7 +35,7 @@ def main(
             typer.secho(
                 f"aviso: '{team}' ({label}) no está en el histórico; se usa el rating "
                 f"por defecto ({cfg.elo.initial_rating:.0f}). Revisa el nombre "
-                "(p.ej. 'United States', no 'USA').",
+                "(p. ej. 'United States', no 'USA').",
                 err=True,
                 fg=typer.colors.YELLOW,
             )

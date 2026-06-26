@@ -23,7 +23,7 @@ def test_load_annex_c_has_495_entries() -> None:
 
 def test_assign_best_thirds_matches_official_row() -> None:
     annex = load_annex_c(ANNEX_PATH)
-    # Los 8 "últimos" grupos -> fila 1 de Annex C (verificada del PDF).
+    # Los 8 "últimos" grupos -> fila 1 de Annex C (verificada en el PDF).
     assignment = assign_best_thirds(set("EFGHIJKL"), annex)
     assert assignment == {
         "1A": "E",

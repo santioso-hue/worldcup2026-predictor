@@ -4,8 +4,7 @@ Ajuste secuencial cronológico sobre el histórico martj42:
 
     Δ = K_base(importancia) · G(margen) · recency · (resultado − E)
 
-donde ``E`` es la expectativa logística con bono de localía. Ver
-``docs/specs/2026-06-16-elo-design.md``.
+donde ``E`` es la expectativa logística con bono de localía.
 """
 
 from __future__ import annotations

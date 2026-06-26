@@ -2,7 +2,7 @@
 
 Predictor del Mundial 2026 que se actualiza en vivo (48 selecciones, 12 grupos). A medida
 que se juegan los partidos, recalcula las probabilidades con los resultados reales y arma
-los gráficos para Shorts y Reels. El modelo combina **Elo dinámico → Dixon-Coles → Monte
+los gráficos de las predicciones. El modelo combina **Elo dinámico → Dixon-Coles → Monte
 Carlo condicional**.
 
 > Contexto y reglas en [`PROJECT.md`](PROJECT.md). De dónde salen los datos: [`SOURCES.md`](data/raw/SOURCES.md).
@@ -26,11 +26,11 @@ python scripts/run_pipeline.py --mode pre_tournament --runs 50000
 
 ```bash
 # Pronóstico de un partido suelto (1X2), con el histórico de martj42.
-# Los nombres tienen que coincidir con martj42 (p.ej. "United States", no "USA").
+# Los nombres tienen que coincidir con martj42 (p. ej. "United States", no "USA").
 python scripts/predict_match.py "Brazil" "France"
 python scripts/predict_match.py "United States" "Mexico" --host "United States"
 
-# Reproducir un estado exacto (para grabar un video sin que cambien los números)
+# Reproducir un estado exacto (los números no cambian entre corridas)
 python scripts/run_pipeline.py --snapshot 20260616t1830 --runs 50000
 
 # Refrescar en bucle mientras hay partidos (sondea por ventanas; ver triggers.py)
@@ -60,32 +60,24 @@ GitHub Actions en un horario fijo y sube las figuras y el JSON como artefactos.
 
 **Reproducibilidad:** con el mismo snapshot y la misma semilla, la salida es idéntica. En
 modo `live` las figuras cambian cuando entra un resultado nuevo (es lo que se espera); para
-grabar, se fija `--snapshot <ts>`.
+fijar un estado reproducible, se usa `--snapshot <ts>`.
 
-## El modelo, por fases
+## Cómo funciona
 
-Están todas hechas, y cada una pasó por revisión y pruebas.
+El pipeline encadena cuatro piezas:
 
-- [x] **Fase 0** — Base del proyecto: `pyproject.toml`, `Makefile`, `config/config.yaml`,
-  CI y RNG.
-- [x] **Fase 1** — Datos y live: `LiveResultsProvider`/`FootballDataProvider`, el calendario
-  base (openfootball), snapshots con timestamp, validación y reconciliación,
-  `WatchTrigger`/`CronTrigger`.
-- [x] **Fase 2** — Elo dinámico: histórico de martj42, multiplicador por margen de gol
-  (eloratings.net), peso por recencia y `fit_elo` secuencial y determinista.
-- [x] **Fase 3** — Dixon-Coles: de Elo a goles, matriz de Poisson y corrección τ para
-  marcadores bajos.
-- [x] **Fase 4** — Monte Carlo condicional: Anexo C, desempates del Art. 13 (enfrentamiento
-  directo recursivo), prórroga y penales; simula solo lo que falta por jugar y da
-  P(ronda/título).
-- [x] **Fase 5** — Backtest y calibración: walk-forward fiel a la recencia (log-loss/Brier/
-  RPS), fiabilidad/ECE y recalibración de Platt.
-- [x] **Fase 6** — Gráficos: tema visual propio, charts/bracket/tabla y export a PNG y MP4.
-- [x] **Fase 7** — Pipeline de punta a punta: `pipeline.py` (núcleo puro) más las CLIs;
-  `reconcile` alimenta a `build_state`; salida en JSON y figuras.
-- [x] **Fase 8** — Tablero en Streamlit (`app/dashboard.py`) sobre los artefactos guardados.
+- **Datos en vivo:** `FootballDataProvider` baja los resultados; el calendario sale de
+  openfootball y el histórico de martj42. Cada corrida guarda un snapshot con timestamp,
+  valida y reconcilia.
+- **Elo dinámico:** ajuste secuencial y determinista sobre el histórico, con multiplicador
+  por margen de gol (eloratings.net) y peso por recencia.
+- **Dixon-Coles:** convierte la diferencia de Elo en goles esperados, arma la matriz de
+  Poisson y corrige los marcadores bajos con τ.
+- **Monte Carlo condicional:** Anexo C, desempates del Art. 13 (enfrentamiento directo
+  recursivo), prórroga y penales; simula solo lo que falta por jugar y da P(ronda/título).
 
-Los diseños de cada fase están en [`docs/specs/`](docs/specs/).
+Encima van el backtest (walk-forward con calibración de Platt), los gráficos (PNG/MP4) y
+el tablero de Streamlit, todo sobre los artefactos que deja cada corrida.
 
 ## Arquitectura
 

@@ -235,7 +235,7 @@ def animate_ranking(
     fmt: str = "mp4",
     outdir: Path | str = Path("outputs/videos"),
 ) -> Path:
-    """Anima la evolución del ranking de campeón entre snapshots (el 'drumroll')."""
+    """Anima la evolución del ranking de campeón entre snapshots."""
     from .export import save_animation
 
     if not snapshots:

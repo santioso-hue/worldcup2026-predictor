@@ -1,6 +1,6 @@
 name: refresh
 
-# Refresco automático y robusto del pipeline (recomendado sobre `--watch`, que depende de
+# Refresco automático del pipeline (recomendado sobre `--watch`, que depende de
 # un proceso vivo). Cada corrida es un único CronTrigger: fetch live -> reconcile -> simula
 # -> figuras + probabilities JSON, publicados como artefactos (las salidas son regenerables
 # y NO se versionan: ver .gitignore).
@@ -14,7 +14,7 @@ on:
     # partido (o usa un webhook del proveedor para refresco instantáneo).
     - cron: "*/30 * * * *"
 
-# No solapar corridas: si una sigue viva cuando dispara la siguiente, ésta espera.
+# No solapar corridas: si una sigue viva cuando dispara la siguiente, esta espera.
 concurrency:
   group: refresh
   cancel-in-progress: false

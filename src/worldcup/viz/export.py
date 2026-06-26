@@ -1,4 +1,4 @@
-"""Export de figuras a PNG determinista en ``outputs/figures/``.
+"""Exportación de figuras a PNG determinista en ``outputs/figures/``.
 
 Fija el tamaño en píxeles desde un ``ExportSpec`` (1080×1920 / 1920×1080), backend Agg
 (headless). El nombre es determinista (``<name>.png``). matplotlib en import perezoso.
@@ -51,7 +51,7 @@ def save_animation(
     fmt: str = "mp4",
     outdir: Path | str = _DEFAULT_VIDEO_OUTDIR,
 ) -> Path:
-    """Anima ``figure`` (``update(i)`` dibuja el frame ``i``) y la guarda como vídeo.
+    """Anima ``figure`` (``update(i)`` dibuja el frame ``i``) y la guarda como video.
 
     ``fmt='mp4'`` usa ffmpeg; ``fmt='gif'`` usa Pillow (sin dependencia externa).
     """
@@ -71,7 +71,7 @@ def save_animation(
         writer = FFMpegWriter(fps=fps)
         ext = "mp4"
     else:
-        raise ValueError(f"formato no soportado: {fmt!r}")
+        raise ValueError(f"formato no admitido: {fmt!r}")
 
     out = Path(outdir)
     out.mkdir(parents=True, exist_ok=True)

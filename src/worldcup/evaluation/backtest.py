@@ -125,7 +125,7 @@ def backtest(
     Raises
     ------
     ValueError
-        Si no quedan partidos para evaluar (``burn_in_matches`` >= nº de partidos).
+        Si no quedan partidos para evaluar (``burn_in_matches`` >= n.º de partidos).
     """
     if burn_in_matches < 0:
         raise ValueError("burn_in_matches debe ser >= 0")

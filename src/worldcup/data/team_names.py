@@ -6,8 +6,8 @@ proyecto. Los proveedores live usan variantes ("Congo DR" vs "DR Congo", "Czechi
 rating por defecto (``initial_rating`` = 1500), distorsionando la predicción.
 
 Mapeamos cada variante **verificada** al nombre de martj42. Solo entradas confirmadas
-contra ambas fuentes: nunca adivinamos un alias. Un mapeo erróneo fusionaría dos
-selecciones distintas —p.ej. ``"Congo"`` (Rep. del Congo) ≠ ``"DR Congo"``—, un error
+contra ambas fuentes. Un mapeo erróneo fusionaría dos
+selecciones distintas —p. ej. ``"Congo"`` (Rep. del Congo) ≠ ``"DR Congo"``—, un error
 peor que el fallback a 1500.
 """
 

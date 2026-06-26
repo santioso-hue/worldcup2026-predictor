@@ -3,7 +3,7 @@
 Mapea la diferencia de Elo (ajustada por localía) a ``λ_home``/``λ_away``, construye la
 matriz Poisson independiente y aplica la corrección de marcador bajo de Dixon-Coles
 (parámetro ``ρ``). La pmf de Poisson se calcula con numpy + stdlib (no scipy para una
-pmf de pocos puntos). Ver ``docs/specs/2026-06-16-dixon-coles-design.md``.
+pmf de pocos puntos).
 """
 
 from __future__ import annotations

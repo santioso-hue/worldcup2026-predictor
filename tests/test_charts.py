@@ -61,7 +61,7 @@ def test_score_heatmap_validates_and_finds_mode() -> None:
 
 
 def test_score_heatmap_rejects_nan() -> None:
-    # NaN derrota a las guardas por comparación (<0, suma): exigir finitud explícita.
+    # NaN burla las guardas por comparación (<0, suma): exigir finitud explícita.
     matrix = np.zeros((6, 6))
     matrix[0, 0] = np.nan
     with pytest.raises(ValueError):

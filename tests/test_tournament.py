@@ -71,7 +71,7 @@ def test_host_advantage_raises_host_champion_probability() -> None:
 
 
 def test_rejects_malformed_groups() -> None:
-    # 11 grupos en vez de 12 -> error claro up-front (no KeyError opaco luego).
+    # 11 grupos en vez de 12 -> error claro de entrada (no KeyError opaco luego).
     bad = {g: [f"{g}{i}" for i in range(1, 5)] for g in "ABCDEFGHIJK"}
     ratings = {t: 1500.0 for teams in bad.values() for t in teams}
     with pytest.raises(ValueError, match="12 grupos"):

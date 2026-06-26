@@ -2,8 +2,8 @@
 # config.yaml — ÚNICA fuente de hiperparámetros, rutas, seed y modo.
 # Ningún número mágico vive en el código de modelo: todo va aquí (PROJECT.md §9).
 # Los valores marcados [ref:Hicruben] son defaults razonables tomados de la
-# referencia principal y VERIFICADOS contra su repo; son ajustables (tunables en
-# Fase 2/5), no constantes inmutables.
+# referencia principal y VERIFICADOS contra su repo; son ajustables, no constantes
+# inmutables.
 # =============================================================================
 
 project:
@@ -41,8 +41,8 @@ data:
     latest_pointer: latest.txt                 # apunta al snapshot más reciente
 
 # ---------------------------------------------------------------------------
-# Elo dinámico (features/elo.py). Detalles del factor k por margen de goles
-# se definen en Fase 2 (decisión de modelado a confirmar contigo).
+# Elo dinámico (features/elo.py). El factor k pondera por importancia del partido
+# y por margen de goles.
 # ---------------------------------------------------------------------------
 elo:
   initial_rating: 1500.0          # rating base para equipos sin historia

@@ -99,7 +99,7 @@ def assign_best_thirds(
     Returns
     -------
     dict[str, str]
-        ``{ganador (p.ej. "1A"): grupo del tercero que enfrenta}``.
+        ``{ganador (p. ej. "1A"): grupo del tercero que enfrenta}``.
 
     Raises
     ------

@@ -12,7 +12,7 @@ Uso (one-off, requiere ``pip install pypdf``):
 
 Fuente: FIFA World Cup 2026 Regulations, Annexe C
 (https://digitalhub.fifa.com/m/636f5c9c6f29771f/original/FWC2026_regulations_EN.pdf).
-La salida JSON (committeada) es el artefacto durable; este script documenta su
+La salida JSON (versionada) es el artefacto durable; este script documenta su
 procedencia y permite re-derivarla; verifica y sale !=0 si falla.
 """
 

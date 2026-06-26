@@ -27,7 +27,7 @@ def test_congo_is_not_collapsed_into_dr_congo() -> None:
 
 
 def test_openfootball_aliases_map_to_martj42_names() -> None:
-    # openfootball deletrea 2 de las 48 distinto a martj42; sin esto caerían a Elo 1500
+    # openfootball escribe 2 de las 48 distinto a martj42; sin esto caerían a Elo 1500
     # y 'USA' (anfitrión) perdería el bono de sede.
     assert canonical_openfootball_team("USA") == "United States"
     bih = canonical_openfootball_team("Bosnia & Herzegovina")

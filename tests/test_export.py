@@ -34,7 +34,7 @@ def test_save_figure_writes_png_of_spec_size(tmp_path: Path) -> None:
 def test_animate_ranking_writes_gif(tmp_path: Path) -> None:
     pytest.importorskip("PIL")  # PillowWriter -> GIF, sin ffmpeg
     path = animate_ranking(
-        _SNAPSHOTS, fmt="gif", outdir=tmp_path, name="drumroll", top_n=3
+        _SNAPSHOTS, fmt="gif", outdir=tmp_path, name="ranking", top_n=3
     )
     assert path.exists() and path.stat().st_size > 0
     assert path.suffix == ".gif"
@@ -46,6 +46,6 @@ def test_animate_ranking_writes_mp4_if_ffmpeg(tmp_path: Path) -> None:
     if not FFMpegWriter.isAvailable():
         pytest.skip("ffmpeg no disponible")
     path = animate_ranking(
-        _SNAPSHOTS, fmt="mp4", outdir=tmp_path, name="drumroll", top_n=3
+        _SNAPSHOTS, fmt="mp4", outdir=tmp_path, name="ranking", top_n=3
     )
     assert path.exists() and path.suffix == ".mp4"

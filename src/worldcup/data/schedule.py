@@ -13,7 +13,7 @@ Funciones **puras** (sin I/O): reciben el JSON ya cargado. La descarga vive en
       "team1": "...", "team2": "...", "group": "Group A",
       "score": {"ft": [h, a], "ht": [h, a]}, "ground": "..." }
 
-*Assumption (envoltorio):* el archivo agrupa los partidos bajo ``"matches"`` o bajo
+*Supuesto (envoltorio):* el archivo agrupa los partidos bajo ``"matches"`` o bajo
 ``"rounds"[].matches``; soportamos ambos y fallamos ruidosamente si no reconocemos el
 formato (no inventamos estructura). openfootball no trae estado: inferimos ``FINISHED``
 si hay ``score.ft`` y ``SCHEDULED`` en caso contrario (un archivo estático no tiene
@@ -35,7 +35,7 @@ EXPECTED_GROUP_MATCHES = 72
 EXPECTED_KNOCKOUT_MATCHES = 32
 EXPECTED_TOTAL_MATCHES = 104
 
-# Rondas de eliminatoria 2026 y su nº de partidos (para validar/etiquetar).
+# Rondas de eliminatoria 2026 y su n.º de partidos (para validar/etiquetar).
 KNOCKOUT_MATCH_COUNTS: dict[str, int] = {
     "Round of 32": 16,
     "Round of 16": 8,
@@ -71,7 +71,7 @@ def make_match_id(date: str, home: str, away: str) -> str:
     Returns
     -------
     str
-        Identificador estable, p.ej. ``"2026-06-11-mexico-vs-south-africa"``.
+        Identificador estable, p. ej. ``"2026-06-11-mexico-vs-south-africa"``.
     """
     return f"{date}-{_slug(home)}-vs-{_slug(away)}"
 

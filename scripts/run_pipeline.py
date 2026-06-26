@@ -150,7 +150,7 @@ def _run_once(
     )
     ts = snapshot or make_timestamp()
     # El replay escribe sus salidas con sufijo _replay para NO pisar el artefacto curado
-    # del mismo ts (p.ej. una corrida live de 50k); el puntero live tampoco se mueve.
+    # del mismo ts (p. ej. una corrida live de 50k); el puntero live tampoco se mueve.
     out_ts = f"{ts}_replay" if is_replay else ts
     if is_live:  # solo live escribe la cadena de snapshots (parquet + latest.txt)
         save_snapshot(

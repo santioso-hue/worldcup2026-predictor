@@ -98,7 +98,7 @@ def test_parse_penalty_ko_encodes_winner() -> None:
 def test_penalty_ko_survives_validation_and_reconcile() -> None:
     # Regresión: el KO por penales del feed live debe pasar validate_match y NO ser
     # descartado por reconcile (antes "penales sin prórroga" lo marcaba sospechoso y
-    # la llave ya jugada se re-simulaba). Ver review adversarial.
+    # la llave ya jugada se re-simulaba).
     m = parse_footballdata_match(KO_PENALTIES)
     assert validate_match(m) == []  # sano
     rec = reconcile([], [m])

@@ -56,7 +56,7 @@ def _net_host_advantage(
 def _validate_groups(groups: dict[str, list[str]]) -> None:
     """Falla ruidosamente si ``groups`` no es la estructura WC2026 (12 grupos A-L de 4).
 
-    Sin esto, una entrada malformada (un nº de grupos != 12, o etiquetas de grupo
+    Sin esto, una entrada malformada (un n.º de grupos != 12, o etiquetas de grupo
     inesperadas) reventaría con un ``KeyError`` opaco en mitad de la resolución del
     bracket en vez de dar un error claro.
     """

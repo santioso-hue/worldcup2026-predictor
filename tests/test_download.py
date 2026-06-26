@@ -101,7 +101,7 @@ def test_load_latest_none_when_empty(tmp_path: Path) -> None:
 
 
 def test_opt_int_coerces_nan_and_floats() -> None:
-    # Guarda del round-trip parquet: NaN/float deben volver a None/int, no corromper.
+    # Salvaguarda del round-trip parquet: NaN/float vuelven a None/int sin corromper.
     assert _opt_int(None) is None
     assert _opt_int(float("nan")) is None
     assert _opt_int(2.0) == 2

@@ -1,7 +1,6 @@
 # PROJECT.md — World Cup 2026 Predictor
 
-> Contexto del proyecto. Léelo completo antes de escribir o modificar código.
-> Mantén este archivo actualizado cuando cambien comandos, estructura o convenciones.
+> Cómo está armado el proyecto: objetivo, decisiones de diseño, arquitectura y fuentes de datos.
 
 ---
 
@@ -13,20 +12,19 @@ Construir un **predictor del Mundial FIFA 2026** (48 equipos, 12 grupos) que:
    medida que ocurren (modelo *live-updating*), no un forecast congelado. Simula con
    Monte Carlo solo lo que falta por jugar.
 2. Produzca **visualizaciones bonitas y consistentes** (probabilidades, bracket,
-   ranking de campeón) listas para **YouTube Short / Instagram Reel** (formato vertical
-   1080×1920) y para un **dashboard interactivo** que muestre la última actualización.
+   ranking de campeón) en formato vertical (1080×1920) y horizontal, más un
+   **dashboard interactivo** que muestre la última actualización.
 3. Sea **reproducible y explicable**: dado un snapshot de resultados fijo + semilla, el
-   pipeline es determinista, sin "caja negra", pensado para narrar en un video corto.
+   pipeline es determinista, sin "caja negra".
 
-Audiencia del output: espectadores no técnicos. Audiencia del código: alguien que
-quiere entender el modelo en una explicación de 1–3 minutos.
+El output está pensado para gente no técnica; el código, para alguien que quiere
+entender el modelo de un vistazo.
 
 ---
 
-## 2. Decisiones de diseño (no las cambies sin avisar al usuario)
+## 2. Decisiones de diseño
 
-- **Lenguaje:** Python 3.11+. *Assumption:* mejor ecosistema ML + viz; si se requiere
-  Node, discutir primero.
+- **Lenguaje:** Python 3.11+ (mejor ecosistema de ML y visualización).
 - **Modelo primario:** `Elo dinámico → Dixon-Coles (Poisson bivariado) → Monte Carlo`.
   Transparente, calibrado y fácil de explicar. **Es el default.**
 - **Modelo alternativo:** clasificador ML (XGBoost) detrás de la **misma interfaz**
@@ -43,9 +41,9 @@ quiere entender el modelo en una explicación de 1–3 minutos.
 - **Determinismo dentro del modo live:** la aleatoriedad de Monte Carlo es reproducible
   **dado un snapshot de resultados fijo + semilla**. Cada descarga de resultados se guarda
   como snapshot con timestamp (`data/raw/results_YYYYMMDDtHHMM.parquet`) y el output
-  registra qué snapshot usó. Para grabar el video, **fija un snapshot** (`--snapshot <ts>`)
-  y obtendrás siempre las mismas figuras. Nunca uses `random`/`np.random` sin el RNG
-  sembrado del proyecto.
+  registra qué snapshot usó. Para reproducir un estado exacto, **fija un snapshot**
+  (`--snapshot <ts>`) y obtendrás siempre las mismas figuras. Nunca uses
+  `random`/`np.random` sin el RNG sembrado del proyecto.
 
 ---
 
@@ -99,7 +97,7 @@ worldcup2026-predictor/
 │   ├── models/
 │   │   ├── base.py            # interfaz MatchModel (predict_scoreline / probs)
 │   │   ├── dixon_coles.py     # Poisson bivariado (PRIMARIO)
-│   │   └── xgboost_model.py   # ML alternativo (mismo interfaz)
+│   │   └── xgboost_model.py   # ML alternativo (misma interfaz)
 │   ├── simulation/
 │   │   ├── state.py           # estado real: finalizados, eliminados, bracket vigente
 │   │   ├── match.py           # muestrea un partido
@@ -118,8 +116,6 @@ worldcup2026-predictor/
 ├── scripts/
 │   ├── run_pipeline.py        # download -> clean -> features -> fit -> simulate -> viz
 │   └── predict_match.py       # CLI: python scripts/predict_match.py Brazil France
-├── notebooks/
-│   └── walkthrough.ipynb      # guion del video, celda por celda
 ├── tests/
 │   ├── test_elo.py
 │   ├── test_dixon_coles.py
@@ -127,11 +123,11 @@ worldcup2026-predictor/
 │   └── test_calibration.py
 ├── outputs/
 │   ├── figures/               # PNG generados (versionar solo los "finales")
-│   └── videos/                # MP4/GIF para reels
+│   └── videos/                # MP4/GIF de las animaciones
 └── .github/workflows/ci.yml   # lint + tests en cada push
 ```
 
-### Principios de arquitectura (respétalos)
+### Principios de arquitectura
 - **Separación de responsabilidades:** `data` != `features` != `models` != `simulation`
   != `evaluation` != `viz`. No mezcles lógica de simulación dentro de viz, etc.
 - **Dependencia en una sola dirección:** `viz` y `simulation` dependen de `models`;
@@ -143,7 +139,7 @@ worldcup2026-predictor/
 
 ---
 
-## 5. Metodología del modelo (para que entiendas el dominio)
+## 5. Metodología del modelo
 
 **Pipeline:** `Elo → tasas de gol esperadas → Dixon-Coles → Monte Carlo`.
 
@@ -178,11 +174,11 @@ Antes de cada simulación, `simulation/tournament.py` aplica el estado real del 
   - `cron` / systemd timer / GitHub Actions schedule: re-corre el pipeline en intervalos
     fijos sin un proceso vivo; más robusto que `--watch` ante caídas.
   - **Webhook / push:** si el proveedor lo ofrece, dispara el refresh al instante en que
-    termina un partido (latencia mínima, cero polling desperdiciado). Es el objetivo final.
+    termina un partido (latencia mínima, cero polling desperdiciado).
   El disparador vive detrás de una interfaz (`RefreshTrigger`) para cambiar
   watch → cron → webhook sin tocar el pipeline.
 
-*Assumption:* el feed de resultados live puede retrasarse o traer datos parciales;
+El feed de resultados live puede retrasarse o traer datos parciales;
 `clean.py` debe validar (marcador, estado finished/in-play/scheduled) y, ante datos
 sospechosos, **conservar el último snapshot válido** en vez de degradar la predicción.
 
@@ -204,7 +200,7 @@ para comparar accuracy/log-loss en el backtest, no como default.
   `/competitions/WC/matches` trae los 104 partidos con su estado.
   Schedule: **openfootball/worldcup.json**.
   La decisión completa, el presupuesto de requests y los puntos a verificar están en
-  **`data/raw/SOURCES.md`** (léelo antes de codear el cliente).
+  **`data/raw/SOURCES.md`**.
 
 **Reglas de datos:**
 - Toda fuente live se accede detrás de la interfaz `data/live_results.LiveResultsProvider`
@@ -217,30 +213,30 @@ para comparar accuracy/log-loss en el backtest, no como default.
   todo lo que cambia lento (teams, standings). Nunca polling continuo.
 - Valida el estado de cada partido (`scheduled` / `in_play` / `finished`) antes de
   bloquearlo. Ante datos parciales o sospechosos, conserva el último snapshot válido.
-- **Nunca inventes** datasets, columnas, specs ni rankings. Si falta un dato, decláralo.
 
 ---
 
-## 7. Visualización (requisito clave: que se vea bonito)
+## 7. Visualización
 
 Todo el branding vive en `viz/theme.py` (una sola fuente de verdad). No hardcodees
 colores/fuentes en otros módulos.
 
 Entregables visuales mínimos:
 - **Barra de probabilidad** de un partido (local/empate/visita) con escudos/colores.
-- **Ranking de campeón** (top-10 selecciones por P(título)) — el "money shot" del reel.
-  Incluye **delta vs. snapshot anterior** (↑/↓) — perfecto para el hook live
-  ("las odds de Brasil saltaron tras ganarle a X").
+- **Ranking de campeón** (top-10 selecciones por P(título)) — la figura estrella.
+  Incluye **delta vs. snapshot anterior** (↑/↓): resalta cómo cambian las
+  probabilidades en vivo cuando entra un resultado nuevo.
 - **Bracket** eliminatorio renderizado (marca llaves ya resueltas con el resultado real).
 - **Tabla de grupo** con P(avance) y partidos ya jugados resaltados.
 - **Heatmap de marcadores** más probables de un partido.
 - **Sello de "última actualización"** (timestamp del snapshot) en toda figura live, para
-  que la audiencia sepa que el número es de ese momento.
+  que quien la vea sepa que el número es de ese momento.
 
 Reglas de export (`viz/export.py`):
-- Vertical **1080×1920** (reel/short) y horizontal **1920×1080** (YouTube/thumbnail).
+- Vertical **1080×1920** y horizontal **1920×1080**.
 - PNG a 150+ dpi, fondo y tipografía consistentes con `theme.py`.
-- Opción de animar la simulación (frames PNG → MP4) para el "drumroll" del campeón.
+- Opción de animar la simulación (frames PNG → MP4) para mostrar cómo se va definiendo
+  el campeón.
 - Cada figura se guarda en `outputs/figures/` con nombre descriptivo y determinista.
 
 Estilo: limpio, alto contraste, legible en móvil (texto grande), sin sobrecargar.
@@ -264,7 +260,7 @@ python scripts/run_pipeline.py --watch --interval 600
 #   schedule para robustez ante caídas; webhook del proveedor para refresh instantáneo
 #   al terminar cada partido. Ver RefreshTrigger en src/worldcup/data/triggers.py.
 
-# Reproducir EXACTAMENTE un estado (para grabar el video sin que cambie)
+# Reproducir EXACTAMENTE un estado (para que los números no cambien)
 python scripts/run_pipeline.py --snapshot 20260616t1830 --runs 50000
 
 # Predicciones puntuales (usan el último snapshot por defecto)
@@ -285,7 +281,7 @@ make fmt                   # black + ruff --fix
 
 Determinismo: dado **el mismo snapshot de resultados + semilla**, la salida es idéntica.
 En modo `live`, las figuras cambian cuando entra un resultado nuevo (es lo esperado); para
-grabar, fija `--snapshot <ts>` y será 100% reproducible.
+reproducir un estado exacto, fija `--snapshot <ts>`.
 
 ---
 
@@ -296,29 +292,24 @@ grabar, fija `--snapshot <ts>` y será 100% reproducible.
 - **Nombres** en inglés para código; comentarios pueden ir en español.
 - **Funciones puras** en `models`/`simulation` (sin I/O ni efectos colaterales);
   el I/O vive en `data`, `scripts` y `app`.
-- **Sin notebooks como fuente de verdad:** la lógica vive en `src/`; el notebook solo
-  importa y narra.
+- **Sin notebooks como fuente de verdad:** la lógica vive en `src/`.
 - **Tests primero para lógica de simulación** (desempates, mejores terceros, penales):
   son donde más se cuelan bugs.
 - **Reproducibilidad:** toda aleatoriedad pasa por `worldcup.rng.get_rng()`.
 
 ## 10. Qué NO hacer
 
-- No inventar referencias, fuentes, rankings ni columnas de datos. Si no estás seguro,
-  verifica en la doc oficial del dataset/lib y dilo explícitamente.
 - No meter números mágicos en el código de modelo; van en `config.yaml`.
 - No acoplar `viz`/`app` dentro de `models`/`simulation`.
 - No usar `random`/`np.random` global sin el RNG sembrado.
 - No sobrescribir `data/raw/`.
-- No entregar un "workaround" si el fix correcto es posible (declara assumptions).
-- No dar por hecho una API/lib: revisa su documentación antes de usar features no triviales.
 - No commitear la API key: va en variable de entorno (`.env`, ignorado en git) y se usa
   server-side. `.env.example` documenta las variables sin valores reales.
 - No hacer polling continuo del feed live: solo por ventanas y con caché (ver `SOURCES.md`).
 
-## 11. Definition of Done (cada feature)
+## 11. Checklist por cambio
 
-1. Código tipado, formateado, con docstring y assumptions marcadas.
+1. Código tipado, formateado y con docstring.
 2. Test que cubra el caso normal + un edge case.
 3. `make lint && make test` en verde.
 4. Si afecta el output: figura regenerada y revisada visualmente.
@@ -326,7 +317,7 @@ grabar, fija `--snapshot <ts>` y será 100% reproducible.
 
 ---
 
-## 12. Repos de referencia (inspiración, no copiar a ciegas)
+## 12. Repos de referencia
 
 - `Hicruben/world-cup-2026-prediction-model` — Elo + Dixon-Coles + Monte Carlo,
   transparente y reproducible. **Referencia principal de metodología.**

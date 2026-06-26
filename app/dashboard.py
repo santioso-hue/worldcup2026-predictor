@@ -50,12 +50,12 @@ def main() -> None:
         with st.spinner("Re-simulando…"):
             result = _rerun_pipeline()
         if result.returncode == 0:
-            st.success("Listo. Recargá la página para ver la actualización.")
+            st.success("Recarga la página para ver la actualización.")
         else:
             st.error(result.stderr or "Falló la re-simulación.")
 
     if run is None:
-        st.info("Todavía no hay corridas. Corré el pipeline primero (make run).")
+        st.info("Todavía no hay corridas. Corre el pipeline primero (make run).")
         return
 
     st.subheader("Probabilidad de campeón")
@@ -69,7 +69,7 @@ def main() -> None:
         hide_index=True,
     )
 
-    # Un artefacto sin grupos (pre-Fase-8) degrada con gracia, como el caso run is None.
+    # Un artefacto sin grupos (corrida vieja) degrada con gracia, como run is None.
     if run.groups:
         st.subheader("Probabilidad de avance por grupo")
         table = prepare_group_table(run.groups, run.probabilities)
@@ -85,7 +85,7 @@ def main() -> None:
                 hide_index=True,
             )
     else:
-        st.info("Esta corrida no incluye grupos; re-simulá para verlas.")
+        st.info("Esta corrida no incluye grupos; re-simula para verlas.")
 
     st.subheader("Detalle por selección")
     team = st.selectbox("Selección", sorted(run.probabilities))

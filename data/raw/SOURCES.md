@@ -1,8 +1,7 @@
 # SOURCES.md — Fuentes de datos (ubicar en `data/raw/SOURCES.md`)
 
-> Investigado: 16 jun 2026. **Verifica el esquema real de cada endpoint en su
-> documentación oficial antes de escribir el parser** (las cuotas y campos cambian).
-> Nunca inventes columnas. Si un campo no existe, decláralo.
+> Investigado: 16 jun 2026. El esquema de cada endpoint (cuotas y campos) puede cambiar;
+> conviene confirmarlo contra la documentación oficial.
 
 ---
 
@@ -48,7 +47,7 @@ cambia lento y nunca gastes una request en un refresh de página.
 
 ---
 
-## A verificar en la doc oficial (antes de codear `live_results.py`)
+## Puntos a confirmar en la doc oficial
 
 1. **football-data.org:** si los resultados **FINALIZADOS** llegan en el tier free sin el
    add-on de livescore, y con qué latencia tras el pitazo final.
