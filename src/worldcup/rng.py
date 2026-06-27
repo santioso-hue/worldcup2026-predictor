@@ -1,6 +1,6 @@
 """Central seeded RNG. **Úsalo SIEMPRE**; nunca `random`/`np.random` global.
 
-La reproducibilidad del proyecto (PROJECT.md §2) depende de que toda la aleatoriedad
+La reproducibilidad del proyecto depende de que toda la aleatoriedad
 de Monte Carlo derive de una única semilla. Para simulaciones en paralelo, usa
 :func:`spawn_rngs`, que produce streams independientes y reproducibles vía
 ``numpy.random.SeedSequence`` (no correlacionados, a diferencia de sembrar a mano

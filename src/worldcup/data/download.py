@@ -2,7 +2,7 @@
 
 Cada corrida guarda un snapshot inmutable ``results_YYYYMMDDtHHMM.parquet`` y actualiza
 un puntero ``latest.txt``. Nunca se machaca un snapshot previo: son el registro de "qué
-sabía el modelo y cuándo" (data/raw/SOURCES.md). Fijar un snapshot ``--snapshot <ts>``
+sabía el modelo y cuándo". Fijar un snapshot ``--snapshot <ts>``
 reproduce exactamente unas figuras.
 
 La conversión ``NormalizedMatch`` <-> registros (``list[dict]``) es **pura** (stdlib,
@@ -89,7 +89,7 @@ def _opt_str(value: Any) -> str | None:
     pandas rellena las celdas ausentes de una columna de texto con ``NaN`` (float), no
     con ``None``. Sin la guarda, un ``venue`` ausente volvería como la cadena ``"nan"``
     tras un round-trip (``str(nan)``), rompiendo la inmutabilidad del snapshot y el
-    determinismo (PROJECT.md §2).
+    determinismo.
     """
     if value is None:
         return None
@@ -152,7 +152,7 @@ def save_snapshot(
         Directorio ``data/raw`` (se crea si no existe).
     overwrite:
         Por defecto ``False``: si el snapshot ya existe se lanza ``FileExistsError``
-        (los snapshots son inmutables; SOURCES.md). Usa un ``ts`` nuevo en su lugar.
+        (los snapshots son inmutables). Usa un ``ts`` nuevo en su lugar.
 
     Returns
     -------

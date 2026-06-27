@@ -1,6 +1,6 @@
 """Carga y valida ``config.yaml`` con pydantic.
 
-Es la ÚNICA fuente de hiperparámetros, rutas, semilla y modo (PROJECT.md §9). Los
+Es la ÚNICA fuente de hiperparámetros, rutas, semilla y modo. Los
 modelos usan ``extra="forbid"`` para que un typo en el YAML falle ruidosamente en vez
 de pasar desapercibido, y ``frozen=True`` para que la config sea inmutable en runtime.
 """
@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class TournamentMode(str, Enum):
-    """Modo de torneo (PROJECT.md §2)."""
+    """Modo de torneo."""
 
     live = "live"
     pre_tournament = "pre_tournament"

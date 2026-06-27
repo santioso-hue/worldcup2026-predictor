@@ -2,12 +2,11 @@
 
 Toda fuente live (football-data.org, openfootball) se accede tras
 :class:`LiveResultsProvider`, de modo que el modelo nunca sabe de qué API vienen los
-datos: se puede cambiar de proveedor sin tocar simulación ni viz (PROJECT.md §6,
-SOURCES.md).
+datos: se puede cambiar de proveedor sin tocar simulación ni viz.
 
 Los mapeos de estado y los campos de marcador están **verificados** contra la doc
 oficial de cada proveedor (16 jun 2026). Cada campo de
-:class:`NormalizedMatch` corresponde a un campo documentado. Ver tabla en SOURCES.md.
+:class:`NormalizedMatch` corresponde a un campo documentado.
 
 Este módulo define SOLO la interfaz + el esquema + los mapeos (funciones puras). Los
 clientes HTTP concretos (con I/O) viven aparte y heredan de
@@ -37,7 +36,7 @@ class MatchStatus(str, Enum):
     NOT_PLAYED = "not_played"
 
 
-# --- Mapeos raw -> normalizado (VERIFICADOS, ver SOURCES.md) -----------------
+# --- Mapeos raw -> normalizado (VERIFICADOS) -----------------
 # football-data.org v4: campo `match.status`.
 FOOTBALLDATA_STATUS: dict[str, MatchStatus] = {
     "SCHEDULED": MatchStatus.SCHEDULED,
@@ -152,14 +151,14 @@ def is_lockable(match: NormalizedMatch) -> bool:
     """Decide si un partido es un HECHO que el reconditioning live debe bloquear.
 
     Bloquear (lock) significa: su marcador deja de muestrearse en Monte Carlo y se
-    trata como dato cierto (PROJECT.md §5.1).
+    trata como dato cierto.
 
     Política: se bloquea un partido ``FINISHED`` que traiga marcador de los 90'
     (``ft_home`` y ``ft_away`` no ``None``).
 
     - ``SCHEDULED``, ``IN_PLAY`` y ``NOT_PLAYED`` nunca se bloquean.
     - Un ``FINISHED`` sin marcador (dato parcial/sospechoso) NO se bloquea: se conserva
-      el último snapshot válido (PROJECT.md §5.1 / §6).
+      el último snapshot válido.
     - Los resultados técnicos (``AWD``/``WO``) no reciben trato especial: en un Mundial
       moderno no ha ocurrido nunca un walkover/resultado adjudicado, así que no vale la
       complejidad. Si llegara uno sin marcador de 90', simplemente no se bloquearía.
@@ -187,7 +186,7 @@ class LiveResultsProvider(ABC):
     siempre :class:`NormalizedMatch`; el resto del proyecto depende solo de esta
     interfaz.
 
-    Política de uso (SOURCES.md): polling **solo por ventanas** con partidos en juego,
+    Política de uso: polling **solo por ventanas** con partidos en juego,
     cada 10–15 min; cachear lo que cambia lento. Nunca polling continuo.
     """
 

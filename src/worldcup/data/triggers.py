@@ -1,7 +1,6 @@
 """``RefreshTrigger``: qué dispara una re-ejecución del pipeline live.
 
-El disparador vive tras una interfaz para poder evolucionar sin tocar el pipeline
-(SOURCES.md, metodología §5.1):
+El disparador vive tras una interfaz para poder evolucionar sin tocar el pipeline:
 
 - :class:`WatchTrigger` — un loop que sondea cada N segundos
   mientras hay partidos. Simple, sin infraestructura.
@@ -40,7 +39,7 @@ class WatchTrigger(RefreshTrigger):
     Parameters
     ----------
     interval_seconds:
-        Segundos entre refreshes (típico 600–900: polling por ventanas, SOURCES.md).
+        Segundos entre refreshes (típico 600–900: polling por ventanas).
     max_ticks:
         Si se indica, para tras ese n.º de refreshes (útil en tests y corridas
         acotadas). ``None`` = loop indefinido.

@@ -5,8 +5,6 @@ que se juegan los partidos, recalcula las probabilidades con los resultados real
 los gráficos de las predicciones. El modelo combina **Elo dinámico → Dixon-Coles → Monte
 Carlo condicional**.
 
-> Contexto y reglas en [`PROJECT.md`](PROJECT.md). De dónde salen los datos: [`SOURCES.md`](data/raw/SOURCES.md).
-
 ## Para arrancar
 
 ```bash
@@ -85,4 +83,4 @@ Las capas están separadas y las dependencias van en un solo sentido:
 `data → features → models → simulation → evaluation → viz`. El I/O vive en `data`, `scripts`
 y `app`; Toda la
 aleatoriedad pasa por `worldcup.rng.get_rng()`, así que con la misma semilla siempre sale lo
-mismo. El árbol completo está en `PROJECT.md §4`.
+mismo.

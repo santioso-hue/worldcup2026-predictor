@@ -6,8 +6,7 @@ eliminatoria), los 12 grupos de 4 y la estructura del bracket. Los resultados li
 cambio de proveedor no rompe la identidad de los partidos.
 
 Funciones **puras** (sin I/O): reciben el JSON ya cargado. La descarga vive en
-``download.py``. El esquema por partido está VERIFICADO contra openfootball
-(ver SOURCES.md):
+``download.py``. El esquema por partido está VERIFICADO contra openfootball:
 
     { "round": "Matchday 1", "date": "YYYY-MM-DD", "time": "13:00 UTC-6",
       "team1": "...", "team2": "...", "group": "Group A",
@@ -28,7 +27,7 @@ from datetime import datetime, timedelta, timezone
 from .live_results import MatchStatus, NormalizedMatch
 from .team_names import canonical_openfootball_team
 
-# Estructura esperada del torneo (para validación; PROJECT.md §1, verificado).
+# Estructura esperada del torneo (para validación, verificado).
 EXPECTED_GROUPS = 12
 EXPECTED_TEAMS_PER_GROUP = 4
 EXPECTED_GROUP_MATCHES = 72

@@ -4,7 +4,7 @@
 :class:`HistoricalMatch` — la base del ajuste Elo (features/elo.py). ``fetch_martj42``
 hace el I/O (descarga y cachea el CSV en ``data/raw/``).
 
-Columnas VERIFICADAS de ``results.csv`` (ver data/raw/SOURCES.md):
+Columnas VERIFICADAS de ``results.csv``:
 ``date, home_team, away_team, home_score, away_score, tournament, city, country,
 neutral``.
 """

@@ -10,7 +10,7 @@ on:
   schedule:
     # Cada 30 min. Solo tiene sentido durante el torneo (jun–jul 2026); fuera de esa ventana
     # deshabilita el workflow o haz el cron más espaciado para no gastar el presupuesto de la
-    # API. El proveedor pide polling por ventanas (SOURCES.md); afina el cron en días de
+    # API. El proveedor pide polling por ventanas; afina el cron en días de
     # partido (o usa un webhook del proveedor para refresco instantáneo).
     - cron: "*/30 * * * *"
 

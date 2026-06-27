@@ -30,7 +30,6 @@ dev = [
     "ruff>=0.1.9",
     "black>=23.12",
     "mypy>=1.8",
-    "pre-commit>=3.6",
     "types-requests",
     "types-PyYAML",
     "pandas-stubs",

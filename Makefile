@@ -1,4 +1,4 @@
-# Pipeline reproducible de 1 comando. Ver PROJECT.md §8.
+# Pipeline reproducible de 1 comando.
 .PHONY: setup run refresh watch snapshot test lint fmt clean
 
 VENV   := .venv

@@ -1,6 +1,6 @@
 """Validación y reconciliación de resultados (funciones puras, sin I/O).
 
-Dos responsabilidades (data/raw/SOURCES.md, metodología §5.1):
+Dos responsabilidades:
 
 1. **Validar** el estado y el marcador de cada partido (``scheduled``/``in_play``/
    ``finished``) y detectar datos sospechosos.
