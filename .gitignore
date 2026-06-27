@@ -11,11 +11,12 @@ __pycache__/
 build/
 *.egg-info/
 
-# Secretos: NUNCA commitear la API key (PROJECT.md §10)
+# Secretos: NUNCA commitear la API key
 .env
 
-# Datos derivados (regenerables). data/raw/ SÍ se versiona: es el registro
-# reproducible de "qué sabía el modelo y cuándo".
+# Datos derivados y de corrida (regenerables): no se versionan. El único dato de
+# entrada versionado es data/raw/annex_c_2026.json (derivado del reglamento, no
+# descargable).
 data/processed/*
 !data/processed/.gitkeep
 
