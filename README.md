@@ -15,7 +15,7 @@ make run                          # corrida live completa (necesita FOOTBALL_DAT
 streamlit run app/dashboard.py    # tablero interactivo (lee la última corrida)
 ```
 
-Si no hay clave de API, igual se puede correr el baseline previo al torneo, que baja el
+Si no hay clave de API, igual se puede simular el baseline previo al torneo, que baja el
 calendario (openfootball) y el histórico (martj42):
 
 ```bash
@@ -43,14 +43,14 @@ make fmt                          # black + ruff --fix
 ```
 
 Para algo más estable que `--watch`, el workflow
-[`.github/workflows/refresh.yml`](.github/workflows/refresh.yml) corre el pipeline con
+[`.github/workflows/refresh.yml`](.github/workflows/refresh.yml) opera el pipeline con
 GitHub Actions en un horario fijo y sube las figuras y el JSON como artefactos.
 
 ## Qué deja cada corrida
 
 - `data/processed/probabilities_<ts>.json` (y `latest.json`): por selección, la
   probabilidad de avanzar y de llegar a octavos, cuartos, semis, final y título, más los
-  grupos. El puntero `latest.json` sirve para mostrar las flechas ↑/↓ contra la corrida
+  grupos. El puntero `latest.json` sirve para mostrar las flechas ↑/↓ contra el simulacro
   anterior.
 - `outputs/figures/*.png`: ranking de campeón, barra 1X2, mapa de calor de marcadores,
   bracket, tabla de grupos y curva de fiabilidad (1080×1920 vertical o 1920×1080 horizontal).
@@ -77,12 +77,12 @@ El pipeline encadena cuatro piezas:
   recursivo), prórroga y penales; simula solo lo que falta por jugar y da P(ronda/título).
 
 Encima van el backtest (walk-forward con calibración de Platt), los gráficos (PNG/MP4) y
-el tablero de Streamlit, todo sobre los artefactos que deja cada corrida.
+el tablero de Streamlit, todo sobre los artefactos que deja cada simulacro.
 
 ## Arquitectura
 
 Las capas están separadas y las dependencias van en un solo sentido:
 `data → features → models → simulation → evaluation → viz`. El I/O vive en `data`, `scripts`
-y `app`; cada capa es un núcleo puro y testeado, envuelto en una capa fina de I/O. Toda la
+y `app`; Toda la
 aleatoriedad pasa por `worldcup.rng.get_rng()`, así que con la misma semilla siempre sale lo
 mismo. El árbol completo está en `PROJECT.md §4`.
