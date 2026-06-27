@@ -46,7 +46,7 @@ Para algo más estable que `--watch`, el workflow
 [`.github/workflows/refresh.yml`](.github/workflows/refresh.yml) opera el pipeline con
 GitHub Actions en un horario fijo y sube las figuras y el JSON como artefactos.
 
-## Qué deja cada corrida
+## Resultados
 
 - `data/processed/probabilities_<ts>.json` (y `latest.json`): por selección, la
   probabilidad de avanzar y de llegar a octavos, cuartos, semis, final y título, más los
