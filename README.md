@@ -30,7 +30,7 @@ python scripts/run_pipeline.py --mode pre_tournament --runs 50000
 python scripts/predict_match.py "Brazil" "France"
 python scripts/predict_match.py "United States" "Mexico" --host "United States"
 
-# Reproducir un estado exacto (los números no cambian entre corridas)
+# Reproducir un estado exacto (los números no cambian)
 python scripts/run_pipeline.py --snapshot 20260616t1830 --runs 50000
 
 # Refrescar en bucle mientras hay partidos (sondea por ventanas; ver triggers.py)
