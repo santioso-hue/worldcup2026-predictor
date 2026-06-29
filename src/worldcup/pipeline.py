@@ -92,6 +92,34 @@ def run_pipeline(
     return result, rec.matches
 
 
+def outcome_from_ratings(
+    home: str,
+    away: str,
+    ratings: dict[str, float],
+    config: Config,
+    *,
+    host: str | None = None,
+) -> tuple[MatchOutcome, np.ndarray]:
+    """1X2 + matriz Dixon-Coles desde ratings YA ajustados (sin re-ajustar Elo).
+
+    Permite predecir muchos partidos reusando un solo ``fit_elo``: el dashboard ajusta
+    el Elo una vez y llama esto por fixture. ``host`` aplica la ventaja de sede del
+    Mundial al anfitrión (``home`` o ``away``); en sede neutral no hay ventaja. Equipos
+    sin rating usan ``initial_rating``.
+    """
+    rating_home = ratings.get(home, config.elo.initial_rating)
+    rating_away = ratings.get(away, config.elo.initial_rating)
+    if host == home:
+        advantage = config.elo.host_advantage
+    elif host == away:
+        advantage = -config.elo.host_advantage
+    else:
+        advantage = 0.0
+    model = DixonColesModel(config.elo, config.dixon_coles)
+    matrix = model.score_matrix(rating_home, rating_away, advantage)
+    return outcome_probabilities(matrix), matrix
+
+
 def predict_fixture(
     home: str,
     away: str,
@@ -103,23 +131,11 @@ def predict_fixture(
 ) -> tuple[MatchOutcome, np.ndarray]:
     """1X2 + matriz de marcadores Dixon-Coles de un partido (puro, sin I/O).
 
-    ``host`` aplica la ventaja de **sede del Mundial** (``elo.host_advantage``) al
-    anfitrión (``home`` o ``away``); en sede neutral no hay ventaja. Equipos sin
-    histórico usan ``initial_rating``. Devuelve el 1X2 y la matriz conjunta de
-    marcadores (para el heatmap), calculando la matriz una sola vez.
+    Ajusta el Elo del histórico y delega en :func:`outcome_from_ratings`. ``host``
+    aplica la ventaja de sede del Mundial; sin histórico se usa ``initial_rating``.
     """
     fitted = fit_elo(history, config.elo, reference_date=reference_date)
-    rating_home = fitted.get(home, config.elo.initial_rating)
-    rating_away = fitted.get(away, config.elo.initial_rating)
-    if host == home:
-        advantage = config.elo.host_advantage
-    elif host == away:
-        advantage = -config.elo.host_advantage
-    else:
-        advantage = 0.0
-    model = DixonColesModel(config.elo, config.dixon_coles)
-    matrix = model.score_matrix(rating_home, rating_away, advantage)
-    return outcome_probabilities(matrix), matrix
+    return outcome_from_ratings(home, away, fitted, config, host=host)
 
 
 def predict_match(

@@ -11,9 +11,11 @@ import pytest
 from worldcup.config import load_config
 from worldcup.data.historical import HistoricalMatch
 from worldcup.data.live_results import MatchStatus, NormalizedMatch
+from worldcup.features.elo import fit_elo
 from worldcup.pipeline import (
     load_latest_probabilities,
     load_latest_run,
+    outcome_from_ratings,
     predict_fixture,
     predict_match,
     render_outputs,
@@ -231,3 +233,17 @@ def test_run_pipeline_history_cutoff_excludes_in_tournament() -> None:
         history_cutoff=date(2026, 6, 11),
     )
     assert base.ratings["A1"] < full.ratings["A1"]
+
+
+def test_outcome_from_ratings_matches_predict_fixture() -> None:
+    fitted = fit_elo(_HISTORY, CFG.elo)
+    direct, _ = predict_fixture("A1", "A2", _HISTORY, CFG)
+    from_ratings, _ = outcome_from_ratings("A1", "A2", fitted, CFG)
+    assert from_ratings == direct
+
+
+def test_outcome_from_ratings_host_helps_home() -> None:
+    fitted = fit_elo(_HISTORY, CFG.elo)
+    neutral, _ = outcome_from_ratings("A1", "A2", fitted, CFG)
+    hosted, _ = outcome_from_ratings("A1", "A2", fitted, CFG, host="A1")
+    assert hosted.home_win > neutral.home_win
