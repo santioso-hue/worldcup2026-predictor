@@ -10,9 +10,12 @@ import pytest
 from worldcup.data.live_results import MatchStatus, NormalizedMatch
 from worldcup.data.schedule import (
     group_teams,
+    is_knockout_stage,
+    is_predictable,
     make_match_id,
     parse_match,
     parse_openfootball,
+    remaining_fixtures,
     validate_schedule,
 )
 
@@ -204,3 +207,63 @@ def test_validate_schedule_accepts_complete_structure() -> None:
     matches = _full_valid_schedule()
     assert len(matches) == 104
     assert validate_schedule(matches) == []
+
+
+# --- Fixture helpers -----
+
+_UTC = timezone.utc
+
+
+def _nm(
+    home: str, away: str, stage: str, status: MatchStatus, **kw: Any
+) -> NormalizedMatch:
+    base: dict[str, Any] = dict(
+        match_id=f"{stage}:{home}-{away}",
+        source="openfootball",
+        source_match_id="x",
+        kickoff_utc=datetime(2026, 6, 11, tzinfo=_UTC),
+        home_team=home,
+        away_team=away,
+        stage=stage,
+        status=status,
+    )
+    base.update(kw)
+    return NormalizedMatch(**base)
+
+
+def test_is_knockout_stage() -> None:
+    assert is_knockout_stage("Round of 32") is True
+    assert is_knockout_stage("Quarter-finals") is True
+    assert is_knockout_stage("Group A") is False
+
+
+def test_remaining_fixtures_excludes_finished_and_sorts_by_kickoff() -> None:
+    played = _nm(
+        "A",
+        "B",
+        "Group A",
+        MatchStatus.FINISHED,
+        kickoff_utc=datetime(2026, 6, 11, tzinfo=_UTC),
+    )
+    later = _nm(
+        "C",
+        "D",
+        "Group A",
+        MatchStatus.SCHEDULED,
+        kickoff_utc=datetime(2026, 6, 20, tzinfo=_UTC),
+    )
+    sooner = _nm(
+        "E",
+        "F",
+        "Round of 32",
+        MatchStatus.SCHEDULED,
+        kickoff_utc=datetime(2026, 6, 15, tzinfo=_UTC),
+    )
+    out = remaining_fixtures([played, later, sooner])
+    assert [m.home_team for m in out] == ["E", "C"]
+
+
+def test_is_predictable_rejects_placeholder_team() -> None:
+    known = {"Colombia", "Ghana"}
+    assert is_predictable("Colombia", "Ghana", known) is True
+    assert is_predictable("Colombia", "Winner 50", known) is False

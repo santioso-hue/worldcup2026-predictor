@@ -246,3 +246,19 @@ def validate_schedule(matches: list[NormalizedMatch]) -> list[str]:
     if knockout_matches != EXPECTED_KNOCKOUT_MATCHES:
         issues.append(f"eliminatoria {knockout_matches} != {EXPECTED_KNOCKOUT_MATCHES}")
     return issues
+
+
+def is_knockout_stage(stage: str) -> bool:
+    """``True`` si la etapa es de eliminatoria (no fase de grupos)."""
+    return not stage.startswith("Group")
+
+
+def remaining_fixtures(matches: list[NormalizedMatch]) -> list[NormalizedMatch]:
+    """Fixtures aún por jugar (estado != FINISHED), ordenados por kickoff."""
+    pending = [m for m in matches if m.status is not MatchStatus.FINISHED]
+    return sorted(pending, key=lambda m: m.kickoff_utc)
+
+
+def is_predictable(home: str, away: str, known_teams: set[str]) -> bool:
+    """``True`` si ambos equipos son selecciones reales (no slots KO sin resolver)."""
+    return home in known_teams and away in known_teams
