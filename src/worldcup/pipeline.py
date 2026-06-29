@@ -23,6 +23,8 @@ from .data.schedule import group_teams
 from .features.elo import fit_elo
 from .models.base import MatchOutcome, outcome_probabilities
 from .models.dixon_coles import DixonColesModel
+from .rng import DEFAULT_SEED, get_rng
+from .simulation.match import simulate_match
 from .simulation.state import build_state, run_from_state
 
 
@@ -156,6 +158,55 @@ def predict_match(
         home, away, history, config, host=host, reference_date=reference_date
     )
     return outcome
+
+
+def knockout_advance_probability(
+    home: str,
+    away: str,
+    ratings: dict[str, float],
+    config: Config,
+    *,
+    host: str | None = None,
+    runs: int = 2000,
+    seed: int = DEFAULT_SEED,
+) -> float:
+    """P(``home`` avanza) en una eliminatoria, con prórroga y penales reales.
+
+    Muestrea el partido ``runs`` veces con :func:`simulate_match`
+    (``knockout=True``), que resuelve los empates con prórroga (Poisson) y
+    penales (moneda ponderada por Elo), y devuelve la fracción de veces que
+    avanza ``home``. Determinista dado ``seed``. Por construcción
+    ``avance >= P(gana en 90)``: los empates también pueden caer a su favor.
+    """
+    if runs <= 0:
+        raise ValueError("runs debe ser > 0")
+    rating_home = ratings.get(home, config.elo.initial_rating)
+    rating_away = ratings.get(away, config.elo.initial_rating)
+    if host == home:
+        advantage = config.elo.host_advantage
+    elif host == away:
+        advantage = -config.elo.host_advantage
+    else:
+        advantage = 0.0
+    model = DixonColesModel(config.elo, config.dixon_coles)
+    rng = get_rng(seed)
+    wins = sum(
+        simulate_match(
+            model,
+            home,
+            away,
+            rating_home,
+            rating_away,
+            rng,
+            home_advantage=advantage,
+            knockout=True,
+            extra_time_total_goals=config.simulation.extra_time_total_goals,
+            elo_denominator=config.elo.elo_per_goal_denominator,
+        ).winner
+        == home
+        for _ in range(runs)
+    )
+    return wins / runs
 
 
 # --- helpers de I/O finos (testeables con tmp_path, sin red) ---

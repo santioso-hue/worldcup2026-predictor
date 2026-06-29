@@ -13,6 +13,7 @@ from worldcup.data.historical import HistoricalMatch
 from worldcup.data.live_results import MatchStatus, NormalizedMatch
 from worldcup.features.elo import fit_elo
 from worldcup.pipeline import (
+    knockout_advance_probability,
     load_latest_probabilities,
     load_latest_run,
     outcome_from_ratings,
@@ -247,3 +248,24 @@ def test_outcome_from_ratings_host_helps_home() -> None:
     neutral, _ = outcome_from_ratings("A1", "A2", fitted, CFG)
     hosted, _ = outcome_from_ratings("A1", "A2", fitted, CFG, host="A1")
     assert hosted.home_win > neutral.home_win
+
+
+def test_knockout_advance_deterministic_and_bounded() -> None:
+    fitted = fit_elo(_HISTORY, CFG.elo)
+    p1 = knockout_advance_probability("A1", "A2", fitted, CFG, runs=500, seed=7)
+    p2 = knockout_advance_probability("A1", "A2", fitted, CFG, runs=500, seed=7)
+    assert p1 == p2
+    assert 0.0 <= p1 <= 1.0
+
+
+def test_knockout_advance_at_least_win_in_90() -> None:
+    fitted = fit_elo(_HISTORY, CFG.elo)
+    outcome, _ = outcome_from_ratings("A1", "A2", fitted, CFG)
+    adv = knockout_advance_probability("A1", "A2", fitted, CFG, runs=3000, seed=1)
+    assert adv >= outcome.home_win - 0.03
+
+
+def test_knockout_stronger_team_advances_more_than_half() -> None:
+    ratings = {"A": 2000.0, "B": 1200.0}
+    adv = knockout_advance_probability("A", "B", ratings, CFG, runs=2000, seed=3)
+    assert adv > 0.5
