@@ -168,6 +168,7 @@ def _run_once(
         config.paths.data_processed,
         out_ts,
         groups=result.groups,
+        fixtures=reconciled,
         update_pointer=not is_replay,
     )
     render_outputs(result, previous_probs, config.paths.figures, ts=out_ts)

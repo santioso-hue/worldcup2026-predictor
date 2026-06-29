@@ -269,3 +269,29 @@ def test_knockout_stronger_team_advances_more_than_half() -> None:
     ratings = {"A": 2000.0, "B": 1200.0}
     adv = knockout_advance_probability("A", "B", ratings, CFG, runs=2000, seed=3)
     assert adv > 0.5
+
+
+_UTC = timezone.utc
+
+
+def test_artifact_roundtrip_persists_only_remaining_fixtures(tmp_path: Path) -> None:
+    played = _nm("A", "B", "Group A", MatchStatus.FINISHED)
+    pending = _nm(
+        "C",
+        "D",
+        "Round of 32",
+        MatchStatus.SCHEDULED,
+        kickoff_utc=datetime(2026, 7, 4, tzinfo=_UTC),
+    )
+    write_probabilities(
+        {"C": {"champion": 0.1}},
+        tmp_path,
+        "20260628t0000",
+        groups={},
+        fixtures=[played, pending],
+    )
+    run = load_latest_run(tmp_path)
+    assert run is not None
+    assert [f["home"] for f in run.fixtures] == ["C"]
+    assert run.fixtures[0]["stage"] == "Round of 32"
+    assert run.fixtures[0]["kickoff"].startswith("2026-07-04")

@@ -9,7 +9,7 @@ toca red ni fs, así que se testea con fixtures; el I/O (fetch, snapshot, figura
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
@@ -19,7 +19,7 @@ from .config import Config
 from .data.clean import reconcile
 from .data.historical import HistoricalMatch
 from .data.live_results import NormalizedMatch
-from .data.schedule import group_teams
+from .data.schedule import group_teams, remaining_fixtures
 from .features.elo import fit_elo
 from .models.base import MatchOutcome, outcome_probabilities
 from .models.dixon_coles import DixonColesModel
@@ -212,25 +212,42 @@ def knockout_advance_probability(
 # --- helpers de I/O finos (testeables con tmp_path, sin red) ---
 
 
+def _fixture_row(match: NormalizedMatch) -> dict[str, str]:
+    """Fila serializable de un fixture para el artefacto del dashboard."""
+    return {
+        "home": match.home_team,
+        "away": match.away_team,
+        "stage": match.stage,
+        "kickoff": match.kickoff_utc.isoformat(),
+    }
+
+
 def write_probabilities(
     probabilities: dict[str, dict[str, float]],
     outdir: Path | str,
     ts: str,
     *,
     groups: dict[str, list[str]] | None = None,
+    fixtures: list[NormalizedMatch] | None = None,
     latest_pointer: str = "latest.json",
     update_pointer: bool = True,
 ) -> Path:
     """Escribe ``probabilities_<ts>.json`` y, si ``update_pointer``, el ``latest``.
 
-    El payload incluye ``groups`` (para las tablas del dashboard). Los replays/baselines
-    escriben su JSON pero NO mueven el puntero live.
+    El payload incluye ``groups`` (tablas del dashboard) y ``fixtures`` (los partidos
+    aún por jugar, para el panel de pronóstico). Los replays/baselines escriben su JSON
+    pero NO mueven el puntero live.
     """
     out = Path(outdir)
     out.mkdir(parents=True, exist_ok=True)
     path = out / f"probabilities_{ts}.json"
-    payload = {"timestamp": ts, "groups": groups or {}, "probabilities": probabilities}
-    # sort_keys -> bytes estables del artefacto (el dashboard/replay lo consumen).
+    pending = remaining_fixtures(fixtures or [])
+    payload = {
+        "timestamp": ts,
+        "groups": groups or {},
+        "fixtures": [_fixture_row(m) for m in pending],
+        "probabilities": probabilities,
+    }
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True))
     if update_pointer:
         (out / latest_pointer).write_text(json.dumps({"timestamp": ts}))
@@ -256,11 +273,12 @@ def load_latest_probabilities(
 
 @dataclass(frozen=True)
 class RunArtifact:
-    """Una corrida persistida: timestamp, grupos y probabilidades."""
+    """Una corrida persistida: timestamp, grupos, fixtures por jugar y probs."""
 
     timestamp: str
     groups: dict[str, list[str]]
     probabilities: dict[str, dict[str, float]]
+    fixtures: list[dict[str, str]] = field(default_factory=list)
 
 
 def load_latest_run(
@@ -280,6 +298,7 @@ def load_latest_run(
         timestamp=payload["timestamp"],
         groups=payload.get("groups", {}),
         probabilities=payload["probabilities"],
+        fixtures=payload.get("fixtures", []),
     )
 
 
