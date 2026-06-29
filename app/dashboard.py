@@ -96,11 +96,15 @@ def _predicted_card_html(
     away_style = f"color:{_ACCENT};font-weight:600;" if away_fav else ""
     advance = ""
     if "advance" in card:
-        leader = home if card["home"] >= card["away"] else away
+        home_adv = card["advance"]
+        if home_adv >= 0.5:
+            leader, p_adv = home, home_adv
+        else:
+            leader, p_adv = away, 1.0 - home_adv
         advance = (
             '<div style="font-size:13px;color:#555;border-top:1px solid #eee;'
             'padding-top:6px;margin-top:6px;">Avanza: '
-            f'<b>{leader} {card["advance"]:.0%}</b></div>'
+            f"<b>{leader} {p_adv:.0%}</b></div>"
         )
     return (
         '<div style="border:1px solid #e6e6e6;border-radius:12px;padding:14px 16px;'
@@ -183,6 +187,7 @@ def main() -> None:
         with st.spinner("Re-simulando…"):
             result = _rerun_pipeline()
         if result.returncode == 0:
+            st.cache_data.clear()
             st.success("Recarga la página para ver la actualización.")
         else:
             st.error(result.stderr or "Falló la re-simulación.")
