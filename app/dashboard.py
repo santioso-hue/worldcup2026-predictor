@@ -135,6 +135,16 @@ def _pending_card_html(stage: str, fecha: str) -> str:
     )
 
 
+def _host_for(home: str, away: str, hosts: set[str]) -> str | None:
+    """El anfitrión del partido, o ``None``. Si ambos son sede se cancela (neutral),
+    igual que la ventaja neta de sede en la simulación de torneo."""
+    if home in hosts and away not in hosts:
+        return home
+    if away in hosts and home not in hosts:
+        return away
+    return None
+
+
 def _match_predictor_section(config: Config, run: RunArtifact) -> None:
     """Panel "Próximos partidos": predice en vivo cada fixture por jugar."""
     st.subheader("Próximos partidos")
@@ -153,7 +163,7 @@ def _match_predictor_section(config: Config, run: RunArtifact) -> None:
             if not is_predictable(home, away, known):
                 st.markdown(_pending_card_html(stage, fecha), unsafe_allow_html=True)
                 continue
-            host = home if home in hosts else (away if away in hosts else None)
+            host = _host_for(home, away, hosts)
             card = _predict_card(
                 home, away, host, is_knockout_stage(stage), ref_iso, results_csv
             )

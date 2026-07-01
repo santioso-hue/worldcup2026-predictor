@@ -43,3 +43,16 @@ def test_predicted_card_advance_follows_favored_side() -> None:
         {"home": 0.66, "draw": 0.23, "away": 0.11, "advance": 0.85},
     )
     assert "Colombia 85%" in home_fav.split("Avanza:")[1]
+
+
+def test_host_for_cancels_when_both_teams_are_hosts() -> None:
+    spec = importlib.util.spec_from_file_location("wc_dashboard_host", _APP)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    hosts = {"United States", "Mexico", "Canada"}
+    assert module._host_for("United States", "Bosnia", hosts) == "United States"
+    assert module._host_for("Bosnia", "Mexico", hosts) == "Mexico"
+    # Dos sedes se cancelan (neutral), como la ventaja neta del torneo.
+    assert module._host_for("United States", "Mexico", hosts) is None
+    assert module._host_for("Brazil", "France", hosts) is None
