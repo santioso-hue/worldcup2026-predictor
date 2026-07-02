@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 from .theme import LANDSCAPE, THEME, ExportSpec, Theme
 
 if TYPE_CHECKING:
+    from matplotlib.axes import Axes
     from matplotlib.figure import Figure
 
 _BOX_W = 0.7
@@ -27,6 +28,8 @@ class BracketMatch:
     home: str | None
     away: str | None
     winner: str | None = None
+    annotation: str | None = None  # small text under the names (score, advance %)
+    highlight: str | None = None  # team name to draw in the accent color
 
 
 @dataclass(frozen=True)
@@ -67,6 +70,59 @@ def prepare_bracket(rounds: list[list[BracketMatch]]) -> list[list[PositionedMat
                 for i, m in enumerate(matches)
             ]
         )
+    return positioned
+
+
+_MIRROR_COLUMNS = 4  # left half occupies columns 0..3, final at column 4
+
+
+def prepare_bracket_mirrored(
+    rounds: list[list[BracketMatch]],
+) -> list[list[PositionedMatch]]:
+    """Position a two-sided bracket: rounds ordered R32(16)...Final(1).
+
+    Each round's list is split in half; the first half feeds the left side
+    (columns ``0..3``, growing rightward toward the final) and the second half
+    feeds the right side, mirrored (columns ``8..5``, growing leftward toward
+    the final at column 4). Within each half, ``y`` follows the same
+    invariant as :func:`prepare_bracket`: leaves at their row index, parents
+    centered between their two children.
+
+    Raises
+    ------
+    ValueError
+        If the bracket is empty, a round doesn't have half the matches of
+        the previous one, or a round can't be split into equal halves.
+    """
+    if not rounds:
+        raise ValueError("empty bracket")
+    if len(rounds[-1]) != 1:
+        raise ValueError("final round must have exactly one match")
+    if len(rounds) < 2:
+        raise ValueError("mirrored bracket needs at least a semifinal and a final")
+    if len(rounds[0]) % 2 != 0:
+        raise ValueError("first round must split into equal left/right halves")
+
+    # Every round but the final splits into a left half and a right half;
+    # each half is itself a standard single-sided bracket feeding one
+    # finalist (the last round of each half has exactly one match).
+    semi_rounds = rounds[:-1]
+    left_rounds = [matches[: len(matches) // 2] for matches in semi_rounds]
+    right_rounds = [matches[len(matches) // 2 :] for matches in semi_rounds]
+
+    left = prepare_bracket(left_rounds)
+    right = prepare_bracket(right_rounds)
+
+    positioned: list[list[PositionedMatch]] = []
+    for col in range(len(semi_rounds)):
+        left_col = [PositionedMatch(pm.match, col, pm.y) for pm in left[col]]
+        right_col = [PositionedMatch(pm.match, 8 - col, pm.y) for pm in right[col]]
+        positioned.append(left_col + right_col)
+
+    # Final round: single match at the center column, centered between the
+    # two finalists (the last entry of each half).
+    final_y = (left[-1][0].y + right[-1][0].y) / 2
+    positioned.append([PositionedMatch(rounds[-1][0], _MIRROR_COLUMNS, final_y)])
     return positioned
 
 
@@ -133,6 +189,123 @@ def render_bracket(
                 )
 
     ax.set_xlim(-0.2, len(positioned) + _BOX_W)
+    ax.set_ylim(-0.5, max_y + 1.2)
+    ax.axis("off")
+    if title is not None:
+        ax.set_title(title, color=theme.text_primary, fontsize=theme.title_size)
+    _apply_font(fig, theme)
+    return fig
+
+
+MIRRORED = ExportSpec(2400, 2000)  # near-square, for the two-sided bracket
+
+
+def _draw_mirrored_box(
+    ax: Axes,
+    pm: PositionedMatch,
+    *,
+    theme: Theme,
+    right_side: bool,
+) -> None:
+    """Draw one bracket box: names, bold winner, accent highlight, annotation."""
+    from matplotlib.patches import Rectangle
+
+    ax.add_patch(
+        Rectangle(
+            (pm.column, pm.y),
+            _BOX_W,
+            _BOX_H,
+            fill=False,
+            edgecolor=theme.text_muted,
+        )
+    )
+    x_text = pm.column + _BOX_W - 0.04 if right_side else pm.column + 0.04
+    ha = "right" if right_side else "left"
+    for slot, team in enumerate((pm.match.home, pm.match.away)):
+        won = team is not None and team == pm.match.winner
+        highlighted = team is not None and team == pm.match.highlight
+        color = theme.accent if highlighted else theme.text_primary
+        ax.text(
+            x_text,
+            pm.y + _BOX_H * (0.78 - 0.34 * slot),
+            team if team is not None else "—",
+            fontsize=theme.stamp_size,
+            color=color,
+            weight="bold" if won else "normal",
+            va="center",
+            ha=ha,
+        )
+    if pm.match.annotation is not None:
+        ax.text(
+            x_text,
+            pm.y + _BOX_H * 0.14,
+            pm.match.annotation,
+            fontsize=max(theme.stamp_size - 6, 6),
+            color=theme.text_muted,
+            va="center",
+            ha=ha,
+        )
+
+
+def render_bracket_mirrored(
+    positioned: list[list[PositionedMatch]],
+    *,
+    theme: Theme = THEME,
+    spec: ExportSpec = MIRRORED,
+    title: str | None = "Knockout bracket",
+) -> Figure:
+    """Draw a two-sided (mirrored) bracket: left half, final, right half.
+
+    Right-half team names are right-aligned and their connectors run from
+    the box's left edge toward the center, mirroring the left half's
+    left-to-right flow.
+    """
+    from matplotlib.figure import Figure
+
+    fig = Figure(
+        figsize=(spec.width_px / spec.dpi, spec.height_px / spec.dpi), dpi=spec.dpi
+    )
+    fig.patch.set_facecolor(theme.background)
+    ax = fig.subplots()
+    ax.set_facecolor(theme.background)
+
+    max_y = max((pm.y for col in positioned for pm in col), default=0.0)
+    n_rounds = len(positioned)
+    for col in positioned:
+        for pm in col:
+            right_side = pm.column > _MIRROR_COLUMNS
+            _draw_mirrored_box(ax, pm, theme=theme, right_side=right_side)
+
+    # Connectors: a parent on the left grows rightward (children's right edge
+    # to its left edge); on the right it mirrors (children's left edge to its
+    # right edge). The final (center column) receives one connector from each
+    # side, each drawn from the appropriate child edge.
+    for col_idx in range(1, n_rounds):
+        prev = positioned[col_idx - 1]
+        cur = positioned[col_idx]
+        is_final = col_idx == n_rounds - 1
+        half_prev = len(prev) // 2
+        for i, pm in enumerate(cur):
+            right_side = pm.column > _MIRROR_COLUMNS
+            if is_final:
+                children = (prev[0], prev[1])
+            elif right_side:
+                j = i - len(cur) // 2
+                children = (prev[half_prev + 2 * j], prev[half_prev + 2 * j + 1])
+            else:
+                children = (prev[2 * i], prev[2 * i + 1])
+            x_parent = pm.column + _BOX_W if right_side else pm.column
+            for child in children:
+                child_right_side = child.column > _MIRROR_COLUMNS
+                x_child = child.column if child_right_side else child.column + _BOX_W
+                ax.plot(
+                    [x_child, x_parent],
+                    [child.y + _BOX_H / 2, pm.y + _BOX_H / 2],
+                    color=theme.text_muted,
+                    linewidth=1,
+                )
+
+    ax.set_xlim(-0.2, 8 + _BOX_W + 0.2)
     ax.set_ylim(-0.5, max_y + 1.2)
     ax.axis("off")
     if title is not None:
