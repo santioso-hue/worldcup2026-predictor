@@ -170,6 +170,7 @@ def _run_once(
         out_ts,
         groups=result.groups,
         fixtures=reconciled,
+        bracket=result.bracket,
         update_pointer=not is_replay,
     )
     render_outputs(result, previous_probs, config.paths.figures, ts=out_ts)

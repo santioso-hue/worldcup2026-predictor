@@ -10,7 +10,7 @@ wiring used to be missing).
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import date
 from pathlib import Path
 
@@ -27,6 +27,7 @@ from .models.dixon_coles import DixonColesModel
 from .rng import DEFAULT_SEED, get_rng
 from .simulation.match import simulate_match
 from .simulation.state import build_state, run_from_state
+from .simulation.tournament import ResolvedTie, resolve_bracket
 
 
 @dataclass(frozen=True)
@@ -37,6 +38,7 @@ class PipelineResult:
     ratings: dict[str, float]
     anomalies: list[tuple[str, str]]
     groups: dict[str, list[str]]
+    bracket: dict[int, ResolvedTie]
 
 
 def run_pipeline(
@@ -75,6 +77,7 @@ def run_pipeline(
     hosts = set(config.simulation.hosts)
     host_advantage = {t: config.elo.host_advantage for t in teams if t in hosts}
     state = build_state(rec.matches, ratings)
+    bracket = resolve_bracket(state, annex_c, rec.matches)
     model = DixonColesModel(config.elo, config.dixon_coles)
     probabilities = run_from_state(
         state,
@@ -91,6 +94,7 @@ def run_pipeline(
         ratings=ratings,
         anomalies=rec.anomalies,
         groups=state.groups,
+        bracket=bracket,
     )
     return result, rec.matches
 
@@ -232,14 +236,16 @@ def write_probabilities(
     *,
     groups: dict[str, list[str]] | None = None,
     fixtures: list[NormalizedMatch] | None = None,
+    bracket: dict[int, ResolvedTie] | None = None,
     latest_pointer: str = "latest.json",
     update_pointer: bool = True,
 ) -> Path:
     """Write ``probabilities_<ts>.json`` plus ``latest`` if ``update_pointer`` is set.
 
-    The payload includes ``groups`` (dashboard tables) and ``fixtures`` (matches still
-    to be played, for the predictor panel). Replays/baselines write their JSON but do
-    NOT move the live pointer.
+    The payload includes ``groups`` (dashboard tables), ``fixtures`` (matches still to
+    be played, for the predictor panel), and ``bracket`` (resolved knockout ties keyed
+    by FIFA match number, for the bracket panel). Replays/baselines write their JSON
+    but do NOT move the live pointer.
     """
     out = Path(outdir)
     out.mkdir(parents=True, exist_ok=True)
@@ -249,6 +255,7 @@ def write_probabilities(
         "timestamp": ts,
         "groups": groups or {},
         "fixtures": [_fixture_row(m) for m in pending],
+        "bracket": {str(n): asdict(tie) for n, tie in (bracket or {}).items()},
         "probabilities": probabilities,
     }
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True))
@@ -282,6 +289,7 @@ class RunArtifact:
     groups: dict[str, list[str]]
     probabilities: dict[str, dict[str, float]]
     fixtures: list[dict[str, str]] = field(default_factory=list)
+    bracket: dict[str, dict] = field(default_factory=dict)
 
 
 def load_latest_run(
@@ -302,6 +310,7 @@ def load_latest_run(
         groups=payload.get("groups", {}),
         probabilities=payload["probabilities"],
         fixtures=payload.get("fixtures", []),
+        bracket=payload.get("bracket", {}),
     )
 
 

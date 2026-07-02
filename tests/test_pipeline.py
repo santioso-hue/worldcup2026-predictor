@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import asdict
 from datetime import date, datetime, timezone
 from itertools import combinations
 from pathlib import Path
@@ -24,6 +25,7 @@ from worldcup.pipeline import (
     write_probabilities,
 )
 from worldcup.simulation.bracket import load_annex_c
+from worldcup.simulation.tournament import ResolvedTie
 
 UTC = timezone.utc
 _ROOT = Path(__file__).resolve().parents[1]
@@ -295,3 +297,41 @@ def test_artifact_roundtrip_persists_only_remaining_fixtures(tmp_path: Path) -> 
     assert [f["home"] for f in run.fixtures] == ["C"]
     assert run.fixtures[0]["stage"] == "Round of 32"
     assert run.fixtures[0]["kickoff"].startswith("2026-07-04")
+
+
+def test_run_pipeline_bracket_has_32_matches() -> None:
+    result, _ = run_pipeline(_backbone(), [], _HISTORY, CFG, ANNEX, runs=10, seed=1)
+    assert len(result.bracket) == 32
+    assert set(result.bracket) == set(range(73, 105))
+    assert all(tie.status == "tbd" for tie in result.bracket.values())
+
+
+def test_write_and_load_bracket_roundtrip(tmp_path: Path) -> None:
+    tie = ResolvedTie(
+        home="A1",
+        away="B2",
+        status="finished",
+        ft_home=2,
+        ft_away=1,
+        winner="A1",
+        kickoff="2026-06-30T18:00:00+00:00",
+        stage="Round of 32",
+    )
+    bracket = {73: tie}
+    write_probabilities(
+        {"A1": {"champion": 0.1}},
+        tmp_path,
+        "20260628t0000",
+        groups={},
+        bracket=bracket,
+    )
+    run = load_latest_run(tmp_path)
+    assert run is not None
+    assert run.bracket == {"73": asdict(tie)}
+
+
+def test_load_latest_run_bracket_defaults_empty(tmp_path: Path) -> None:
+    write_probabilities({"A1": {"champion": 0.1}}, tmp_path, "20260628t0000")
+    run = load_latest_run(tmp_path)
+    assert run is not None
+    assert run.bracket == {}
