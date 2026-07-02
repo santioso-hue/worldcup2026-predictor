@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import streamlit as st  # noqa: E402
 
 from worldcup.config import Config, load_config  # noqa: E402
-from worldcup.data.historical import parse_results_csv  # noqa: E402
+from worldcup.data.historical import fetch_martj42, parse_results_csv  # noqa: E402
 from worldcup.features.elo import fit_elo  # noqa: E402
 from worldcup.pipeline import (  # noqa: E402
     RunArtifact,
@@ -47,6 +47,14 @@ _ROOT = Path(__file__).resolve().parents[1]
 
 def _config() -> Config:
     return load_config(_ROOT / "config" / "config.yaml")
+
+
+@st.cache_data(show_spinner="Downloading match history…")
+def _ensure_history(results_csv: str) -> str:
+    """Download the results history once if missing (fresh deploys have no data/)."""
+    config = _config()
+    fetch_martj42(config.data.historical.results_url, Path(results_csv))
+    return results_csv
 
 
 @st.cache_data(show_spinner=False)
@@ -108,7 +116,9 @@ def _state_strip_stats(
         favorite = "—"
     played = sum(1 for tie in bracket.values() if tie["status"] == "finished")
     kickoffs = [
-        tie["kickoff"] for tie in bracket.values() if tie["status"] == "scheduled"
+        tie["kickoff"]
+        for tie in bracket.values()
+        if tie["status"] == "scheduled" and tie["kickoff"]
     ]
     next_kickoff = min(kickoffs)[:10] if kickoffs else "—"
     return {
@@ -189,8 +199,9 @@ def _scheduled_hover(tie: dict, card: dict[str, float], label: str) -> str:
     """Hover text for an undecided tie: stage, kickoff date, 1X2, advance label."""
     stage, home, away = tie["stage"], tie["home"], tie["away"]
     kickoff = tie["kickoff"]
+    when = kickoff[:10] if kickoff else "date TBD"
     return (
-        f"{stage} — {kickoff[:10]}<br>"
+        f"{stage} — {when}<br>"
         f"{home} {card['home']:.0%} · draw {card['draw']:.0%} · "
         f"{away} {card['away']:.0%}<br>"
         f"advances: {label}"
@@ -262,7 +273,7 @@ def _match_predictor_section(config: Config, run: RunArtifact) -> None:
     if not run.bracket:
         st.info("This run predates the bracket artifact — re-run the pipeline.")
         return
-    results_csv = str(_ROOT / config.paths.data_raw / "results.csv")
+    results_csv = _ensure_history(str(_ROOT / config.paths.data_raw / "results.csv"))
     ref_iso = date.today().isoformat()
     rows = _bracket_rows(results_csv, ref_iso, run.bracket)
     round_order = _bracket_round_order()

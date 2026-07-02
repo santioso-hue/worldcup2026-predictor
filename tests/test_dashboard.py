@@ -156,6 +156,38 @@ def test_state_strip_stats_no_alive_teams_gives_dash_favorite() -> None:
     assert stats["favorite"] == "—"
 
 
+def test_state_strip_stats_ignores_none_kickoff_among_scheduled_ties() -> None:
+    # A scheduled tie with kickoff=None (undated fixture in the committed
+    # artifact) must not crash min(...); the next kickoff should come from
+    # the ties that do have a date.
+    module = _load_module("wc_dashboard_state_strip_none_kickoff")
+    probabilities = {"Argentina": {"champion": 0.30}}
+    bracket = {
+        "90": {"status": "scheduled", "kickoff": None},
+        "91": {"status": "scheduled", "kickoff": "2026-07-05T23:00:00+00:00"},
+    }
+    stats = module._state_strip_stats(probabilities, bracket)
+    assert stats["next_kickoff"] == "2026-07-05"
+
+
+def test_state_strip_stats_all_none_kickoffs_gives_dash() -> None:
+    module = _load_module("wc_dashboard_state_strip_all_none_kickoff")
+    probabilities = {"Argentina": {"champion": 1.0}}
+    bracket = {"90": {"status": "scheduled", "kickoff": None}}
+    stats = module._state_strip_stats(probabilities, bracket)
+    assert stats["next_kickoff"] == "—"
+
+
+def test_scheduled_hover_handles_none_kickoff() -> None:
+    module = _load_module("wc_dashboard_scheduled_hover_none_kickoff")
+    tie = {"stage": "Round of 16", "home": "Brazil", "away": "Japan", "kickoff": None}
+    card = {"home": 0.55, "draw": 0.20, "away": 0.25}
+    hover = module._scheduled_hover(tie, card, "Brazil 70%")
+    assert "date TBD" in hover
+    assert "Brazil" in hover
+    assert "advances: Brazil 70%" in hover
+
+
 def test_streamlit_config_has_exact_primary_color() -> None:
     with _STREAMLIT_CONFIG.open("rb") as handle:
         config = tomllib.load(handle)
