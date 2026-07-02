@@ -1,4 +1,4 @@
-# Entornos / cachés
+# Environments / caches
 .venv/
 __pycache__/
 *.py[cod]
@@ -7,20 +7,19 @@ __pycache__/
 .ruff_cache/
 .ipynb_checkpoints/
 
-# Artefactos de build (regenerables; no son fuente de verdad).
+# Build artifacts (regenerable; not source of truth).
 build/
 *.egg-info/
 
-# Secretos: NUNCA commitear la API key
+# Secrets: NEVER commit the API key
 .env
 
-# Datos derivados y de corrida (regenerables): no se versionan. El único dato de
-# entrada versionado es data/raw/annex_c_2026.json (derivado del reglamento, no
-# descargable).
+# Derived/run data (regenerable): not versioned. The only versioned input data
+# is data/raw/annex_c_2026.json (derived from the regulations, not downloadable).
 data/processed/*
 !data/processed/.gitkeep
 
-# Outputs: versionar solo los "finales" a mano; el resto se ignora.
+# Outputs: only version "final" figures by hand; everything else is ignored.
 outputs/figures/*
 outputs/videos/*
 !outputs/figures/.gitkeep
@@ -29,10 +28,10 @@ outputs/videos/*
 # OS
 .DS_Store
 
-# Cachés descargados de martj42 (regenerables vía fetch_martj42; no son fuente de verdad).
+# Caches downloaded from martj42 (regenerable via fetch_martj42; not source of truth).
 data/raw/results.csv
 data/raw/shootouts.csv
 
-# Snapshots live + puntero: estado de corrida regenerable, no fuente de verdad.
+# Live snapshots + pointer: regenerable run state, not source of truth.
 data/raw/results_*.parquet
 data/raw/latest.txt

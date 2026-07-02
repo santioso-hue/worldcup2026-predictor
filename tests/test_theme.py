@@ -1,4 +1,4 @@
-"""Tests del tema visual: tamaños de export y validez de la paleta."""
+"""Tests for the visual theme: export sizes and palette validity."""
 
 from __future__ import annotations
 

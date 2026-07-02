@@ -1,11 +1,11 @@
-"""Standings de grupo (FWC2026 Art. 13) y ranking de los mejores terceros.
+"""Group standings (FWC2026 Art. 13) and best-thirds ranking.
 
-Cadena de desempate VERIFICADA (Art. 13): puntos → **head-to-head** (pts/GD/GF entre los
-empatados, recursivo "matches between the remaining teams only") → GD global → goles
-globales → [conduct score: omitido, no modelamos tarjetas] → **Elo** (proxy determinista
-del ranking FIFA, el paso final). El head-to-head va ANTES que el GD global.
+Verified tiebreak chain (Art. 13): points -> **head-to-head** (pts/GD/GF among tied
+teams, recursive "matches between the remaining teams only") -> overall GD -> overall
+goals -> [conduct score: skipped, we don't model cards] -> **Elo** (deterministic proxy
+for the FIFA ranking, the final step). Head-to-head comes BEFORE overall GD.
 
-Funciones puras (sin I/O, sin RNG).
+Pure functions (no I/O, no RNG).
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True, slots=True)
 class PlayedMatch:
-    """Un partido ya jugado/simulado (marcador final reglamentario)."""
+    """A played/simulated match (regulation final score)."""
 
     home: str
     away: str
@@ -26,7 +26,7 @@ class PlayedMatch:
 
 @dataclass(frozen=True, slots=True)
 class TeamStanding:
-    """Registro global de un equipo en su grupo."""
+    """A team's overall record within its group."""
 
     team: str
     points: int
@@ -37,7 +37,7 @@ class TeamStanding:
 def _stats(
     matches: list[PlayedMatch], subset: list[str]
 ) -> dict[str, tuple[int, int, int]]:
-    """``{team: (pts, gd, gf)}`` contando solo partidos entre equipos de ``subset``."""
+    """``{team: (pts, gd, gf)}`` counting only matches between teams in ``subset``."""
     members = set(subset)
     pts = {t: 0 for t in subset}
     gd = {t: 0 for t in subset}
@@ -60,19 +60,19 @@ def _stats(
 
 
 def _require_elo(teams: list[str], elo_ratings: dict[str, float]) -> None:
-    """Falla ruidosamente si el Elo (proxy del desempate final) no cubre algún equipo.
+    """Fail loudly if the Elo (final-tiebreak proxy) doesn't cover every team.
 
-    El Elo es el desempate determinista final (Art. 13 Step 3); un equipo ausente sería
-    un bug de cableado del caller. Validamos up-front para fallar igual sin importar el
-    marcador, en vez de solo cuando se alcanza la rama de desempate.
+    Elo is the deterministic final tiebreak (Art. 13 Step 3); a missing team means the
+    caller wired something wrong. We validate up front so it fails regardless of the
+    scoreline, instead of only when the tiebreak branch is actually reached.
     """
     missing = sorted({t for t in teams if t not in elo_ratings})
     if missing:
-        raise ValueError(f"elo_ratings no cubre a los equipos: {missing}")
+        raise ValueError(f"elo_ratings is missing teams: {missing}")
 
 
 def _bucket(items: list[str], key: Callable[[str], object]) -> list[list[str]]:
-    """Ordena descendente por ``key`` y agrupa elementos con la misma clave."""
+    """Sort descending by ``key`` and group items sharing the same key."""
     ordered = sorted(items, key=key, reverse=True)  # type: ignore[arg-type]
     buckets: list[list[str]] = []
     for it in ordered:
@@ -86,37 +86,37 @@ def _bucket(items: list[str], key: Callable[[str], object]) -> list[list[str]]:
 def standings(
     matches: list[PlayedMatch], teams: list[str], elo_ratings: dict[str, float]
 ) -> list[TeamStanding]:
-    """Ordena los equipos de un grupo (1º→4º) según el Art. 13.
+    """Order a group's teams (1st-4th) per Art. 13.
 
     Parameters
     ----------
     matches:
-        Los 6 partidos del grupo (marcadores reglamentarios).
+        The group's 6 matches (regulation scores).
     teams:
-        Los 4 equipos del grupo.
+        The group's 4 teams.
     elo_ratings:
-        Ratings Elo (proxy del ranking FIFA para el desempate final).
+        Elo ratings (FIFA-ranking proxy for the final tiebreak).
 
     Returns
     -------
     list[TeamStanding]
-        Equipos en orden de clasificación, con su registro global.
+        Teams in ranked order, with their overall record.
     """
     _require_elo(teams, elo_ratings)
     overall = _stats(matches, teams)
 
     def rank_tied(subset: list[str]) -> list[str]:
-        """Ordena un subconjunto empatado en puntos (head-to-head recursivo)."""
+        """Order a subset tied on points (recursive head-to-head)."""
         if len(subset) == 1:
             return list(subset)
-        h2h = _stats(matches, subset)  # "remaining teams only" al recursar
+        h2h = _stats(matches, subset)  # "remaining teams only" when recursing
         buckets = _bucket(subset, key=lambda t: h2h[t])
         if len(buckets) > 1:
             ordered: list[str] = []
             for bucket in buckets:
                 ordered.extend(rank_tied(bucket))
             return ordered
-        # H2H no separó: GD global → goles globales → Elo (conduct omitido).
+        # H2H didn't separate them: overall GD -> overall goals -> Elo (skip conduct).
         return sorted(
             subset,
             key=lambda t: (overall[t][1], overall[t][2], elo_ratings[t]),
@@ -124,7 +124,7 @@ def standings(
         )
 
     ordered_teams: list[str] = []
-    for bucket in _bucket(teams, key=lambda t: overall[t][0]):  # por puntos
+    for bucket in _bucket(teams, key=lambda t: overall[t][0]):  # by points
         ordered_teams.extend(rank_tied(bucket) if len(bucket) > 1 else bucket)
     return [TeamStanding(t, *overall[t]) for t in ordered_teams]
 
@@ -132,9 +132,9 @@ def standings(
 def rank_thirds(
     thirds: list[TeamStanding], elo_ratings: dict[str, float]
 ) -> list[TeamStanding]:
-    """Ordena los terceros (sin H2H — distintos grupos): pts → GD → goles → Elo.
+    """Order third-place teams (no H2H, different groups): pts -> GD -> goals -> Elo.
 
-    El proxy Elo cubre el paso final (ranking FIFA); el conduct score se omite.
+    The Elo proxy covers the final step (FIFA ranking); conduct score is skipped.
     """
     _require_elo([s.team for s in thirds], elo_ratings)
     return sorted(

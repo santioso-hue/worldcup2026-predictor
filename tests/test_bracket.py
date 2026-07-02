@@ -1,4 +1,4 @@
-"""Tests del bracket de eliminatoria + Annex C (best thirds)."""
+"""Tests for the knockout bracket + Annex C (best thirds)."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ def test_load_annex_c_has_495_entries() -> None:
 
 def test_assign_best_thirds_matches_official_row() -> None:
     annex = load_annex_c(ANNEX_PATH)
-    # Los 8 "últimos" grupos -> fila 1 de Annex C (verificada en el PDF).
+    # The 8 "last" groups -> row 1 of Annex C (verified against the PDF).
     assignment = assign_best_thirds(set("EFGHIJKL"), annex)
     assert assignment == {
         "1A": "E",

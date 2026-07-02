@@ -1,4 +1,4 @@
-"""Tests de la interfaz live: mapeo de estado, esquema normalizado e ``is_lockable``."""
+"""Tests for the live interface: status mapping, normalized schema, ``is_lockable``."""
 
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ def test_status_mapping_football_data() -> None:
 
 
 def test_unknown_status_raises_not_guesses() -> None:
-    # Edge case: un código desconocido debe fallar, no bloquear un partido por error.
+    # Edge case: an unknown code must fail, not silently lock a match.
     with pytest.raises(KeyError):
         normalize_status("football_data", "ZZ")
 
@@ -60,7 +60,7 @@ def test_scheduled_match_has_no_scores() -> None:
     assert scheduled.is_finished is False
 
 
-# --- is_lockable: bloquear FINISHED con marcador de 90' ---------------------
+# --- is_lockable: lock FINISHED matches with a 90' score --------------------
 
 
 def test_lockable_finished_with_score() -> None:
@@ -73,6 +73,6 @@ def test_not_lockable_when_in_play_or_scheduled() -> None:
 
 
 def test_not_lockable_finished_without_score() -> None:
-    # Edge case: FINISHED sin marcador = dato parcial/sospechoso -> NO bloquear.
+    # Edge case: FINISHED with no score = partial/suspect data -> do NOT lock.
     suspicious = _match(status=MatchStatus.FINISHED, ft_home=None, ft_away=None)
     assert not is_lockable(suspicious)

@@ -1,1 +1,1 @@
-"""Modelos de partido: interfaz MatchModel y Dixon-Coles (el modelo del proyecto)."""
+"""Match models: MatchModel interface and Dixon-Coles (the project's model)."""

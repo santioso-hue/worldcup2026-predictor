@@ -1,10 +1,9 @@
-"""Muestreo de un partido: reglamentario + prórroga + penales (eliminatoria).
+"""Match sampling: regulation + extra time + penalties (knockout stage).
 
-Tiempo reglamentario: marcador muestreado de la matriz Dixon-Coles. Si un partido de
-eliminatoria queda empatado, se juega prórroga (Poisson con ``extra_time_total_goals``
-goles esperados totales, repartidos según los goles esperados de cada equipo); si sigue
-empatado, penales (moneda ponderada por Elo). Toda la aleatoriedad pasa por el RNG
-sembrado del proyecto.
+Regulation: scoreline sampled from the Dixon-Coles matrix. If a knockout match ends
+level, extra time is played (Poisson with ``extra_time_total_goals`` expected goals
+total, split by each team's expected-goals share); if still level, penalties (an
+Elo-weighted coin flip). All randomness goes through the project's seeded RNG.
 """
 
 from __future__ import annotations
@@ -19,10 +18,11 @@ from ..models.base import MatchModel, sample_scoreline
 
 @dataclass(frozen=True, slots=True)
 class MatchResult:
-    """Resultado de un partido; ``home_goals``/``away_goals`` son del reglamentario.
+    """Match result; ``home_goals``/``away_goals`` are the regulation scoreline.
 
-    ``winner`` es ``None`` en fase de grupos (el marcador decide W/D/L); en eliminatoria
-    es siempre el equipo que avanza (tras prórroga/penales si hizo falta).
+    ``winner`` is ``None`` in the group stage (the scoreline decides W/D/L); in the
+    knockout stage it's always the team that advances (after extra time/penalties
+    if needed).
     """
 
     home: str
@@ -33,7 +33,7 @@ class MatchResult:
 
 
 def _expected_goals(matrix: np.ndarray) -> tuple[float, float]:
-    """Goles esperados (local, visitante) derivados de la matriz (model-agnostic)."""
+    """Expected goals (home, away) derived from the matrix (model-agnostic)."""
     idx = np.arange(matrix.shape[0])
     e_home = float((idx[:, None] * matrix).sum())
     e_away = float((idx[None, :] * matrix).sum())
@@ -53,10 +53,10 @@ def simulate_match(
     extra_time_total_goals: float = 0.8,
     elo_denominator: float = 400.0,
 ) -> MatchResult:
-    """Muestrea un partido y devuelve su :class:`MatchResult`.
+    """Sample a match and return its :class:`MatchResult`.
 
-    En fase de grupos (``knockout=False``) se devuelve el marcador reglamentario y
-    ``winner=None``. En eliminatoria se resuelve siempre un ganador.
+    In the group stage (``knockout=False``) this returns the regulation scoreline
+    and ``winner=None``. In the knockout stage a winner is always resolved.
     """
     matrix = model.score_matrix(rating_home, rating_away, home_advantage)
     home_goals, away_goals = sample_scoreline(matrix, rng)
@@ -68,7 +68,7 @@ def simulate_match(
         winner = home if home_goals > away_goals else away
         return MatchResult(home, away, home_goals, away_goals, winner)
 
-    # Empate reglamentario -> prórroga (reparto del total esperado por fuerza ofensiva).
+    # Level after regulation -> extra time (split expected total by offensive strength).
     e_home, e_away = _expected_goals(matrix)
     total = e_home + e_away
     home_share = 0.5 if total <= 0.0 else e_home / total
@@ -78,7 +78,7 @@ def simulate_match(
         winner = home if et_home > et_away else away
         return MatchResult(home, away, home_goals, away_goals, winner)
 
-    # Sigue empatado -> penales: P(gana local) por la logística de Elo.
+    # Still level -> penalties: P(home wins) from the Elo logistic.
     p_home = expected_score(rating_home, rating_away, home_advantage, elo_denominator)
     winner = home if rng.random() < p_home else away
     return MatchResult(home, away, home_goals, away_goals, winner)

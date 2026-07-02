@@ -1,9 +1,9 @@
-"""Bracket eliminatorio: layout (puro) + render matplotlib.
+"""Knockout bracket: layout (pure) + matplotlib render.
 
-``prepare_bracket`` posiciona cada partido en columnas por ronda (puro, testeable);
-``render_bracket`` dibuja cajas y conectores, resaltando al ganador de las llaves
-resueltas. Recibe la estructura de rondas ya dada: derivar los cruces a partir de los
-resultados es trabajo del pipeline, no de ``viz``.
+``prepare_bracket`` positions each match into columns by round (pure, testable);
+``render_bracket`` draws the boxes and connectors, bolding the winner in resolved
+matchups. It takes the round structure as given: deriving matchups from results is
+the pipeline's job, not ``viz``'s.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ _BOX_H = 0.7
 
 @dataclass(frozen=True)
 class BracketMatch:
-    """Una llave: equipos (``None`` = aún sin definir) y, si se jugó, el ganador."""
+    """A matchup: teams (``None`` = not yet decided) and the winner, if played."""
 
     home: str | None
     away: str | None
@@ -31,7 +31,7 @@ class BracketMatch:
 
 @dataclass(frozen=True)
 class PositionedMatch:
-    """Un partido con su posición de layout (columna = ronda, ``y`` = fila centrada)."""
+    """A match with its layout position (column = round, ``y`` = centered row)."""
 
     match: BracketMatch
     column: int
@@ -39,15 +39,16 @@ class PositionedMatch:
 
 
 def prepare_bracket(rounds: list[list[BracketMatch]]) -> list[list[PositionedMatch]]:
-    """Posiciona cada partido: columna = ronda; ``y`` = centro entre sus dos hijos.
+    """Position each match: column = round; ``y`` = midpoint between its two children.
 
     Raises
     ------
     ValueError
-        Si el bracket está vacío o una ronda no tiene la mitad que la anterior.
+        If the bracket is empty or a round doesn't have half the matches of the
+        previous one.
     """
     if not rounds:
-        raise ValueError("bracket vacío")
+        raise ValueError("empty bracket")
     positioned: list[list[PositionedMatch]] = []
     for col, matches in enumerate(rounds):
         if col == 0:
@@ -58,7 +59,7 @@ def prepare_bracket(rounds: list[list[BracketMatch]]) -> list[list[PositionedMat
         prev = positioned[col - 1]
         if len(matches) * 2 != len(prev):
             raise ValueError(
-                f"la ronda {col} debe tener la mitad de partidos que la anterior"
+                f"round {col} must have half the matches of the previous round"
             )
         positioned.append(
             [
@@ -70,7 +71,7 @@ def prepare_bracket(rounds: list[list[BracketMatch]]) -> list[list[PositionedMat
 
 
 def _apply_font(fig: Figure, theme: Theme) -> None:
-    """Fija la tipografía de marca en todo el texto de la figura (determinista)."""
+    """Apply the brand font to every text artist in the figure (deterministic)."""
     from matplotlib.text import Text
 
     for artist in fig.findobj(Text):
@@ -83,9 +84,9 @@ def render_bracket(
     *,
     theme: Theme = THEME,
     spec: ExportSpec = LANDSCAPE,
-    title: str | None = "Bracket eliminatorio",
+    title: str | None = "Knockout bracket",
 ) -> Figure:
-    """Dibuja una caja por partido y conectores entre rondas; ganador en negrita."""
+    """Draw one box per match and connectors between rounds; bold the winner."""
     from matplotlib.figure import Figure
     from matplotlib.patches import Rectangle
 

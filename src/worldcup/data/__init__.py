@@ -1,1 +1,1 @@
-"""Capa de datos: descarga, fuentes live, limpieza, schedule y triggers."""
+"""Data layer: downloads, live sources, cleaning, schedule, and triggers."""

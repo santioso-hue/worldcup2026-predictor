@@ -1,4 +1,4 @@
-"""Tests de snapshotting: round-trip de registros (puro) y de parquet (con pandas)."""
+"""Snapshotting tests: record round-trip (pure) and parquet round-trip (with pandas)."""
 
 from __future__ import annotations
 
@@ -60,8 +60,8 @@ def _scheduled() -> NormalizedMatch:
 
 def test_make_timestamp_is_utc_and_formatted() -> None:
     assert make_timestamp(datetime(2026, 6, 16, 18, 30, tzinfo=UTC)) == "20260616t1830"
-    # convierte a UTC antes de formatear
-    tz_minus4 = timezone.utc.utcoffset(None)  # noqa: F841 - claridad
+    # converts to UTC before formatting
+    tz_minus4 = timezone.utc.utcoffset(None)  # noqa: F841 - clarity
     from datetime import timedelta
 
     other = datetime(2026, 6, 16, 14, 30, tzinfo=timezone(timedelta(hours=-4)))
@@ -92,7 +92,7 @@ def test_snapshots_are_immutable(tmp_path: Path) -> None:
     ts = "20260719t2130"
     save_snapshot([_finished()], ts, tmp_path)
     with pytest.raises(FileExistsError):
-        save_snapshot([_finished()], ts, tmp_path)  # no se machaca
+        save_snapshot([_finished()], ts, tmp_path)  # must not overwrite
 
 
 def test_load_latest_none_when_empty(tmp_path: Path) -> None:
@@ -101,7 +101,7 @@ def test_load_latest_none_when_empty(tmp_path: Path) -> None:
 
 
 def test_opt_int_coerces_nan_and_floats() -> None:
-    # Salvaguarda del round-trip parquet: NaN/float vuelven a None/int sin corromper.
+    # Parquet round-trip safeguard: NaN/float come back as None/int without corrupting.
     assert _opt_int(None) is None
     assert _opt_int(float("nan")) is None
     assert _opt_int(2.0) == 2
@@ -109,9 +109,9 @@ def test_opt_int_coerces_nan_and_floats() -> None:
 
 
 def test_record_to_match_coerces_nan_strings_to_none() -> None:
-    # pandas devuelve NaN (float) para celdas de texto ausentes (venue/fetched_at):
-    # deben volver a None, NO a la cadena "nan" (regresión del round-trip de snapshot).
-    rec = match_to_record(_scheduled())  # venue y fetched_at son None
+    # pandas returns NaN (float) for missing text cells (venue/fetched_at): these must
+    # come back as None, NOT the string "nan" (snapshot round-trip regression).
+    rec = match_to_record(_scheduled())  # venue and fetched_at are None
     rec["venue"] = float("nan")
     rec["fetched_at"] = float("nan")
     m = record_to_match(rec)

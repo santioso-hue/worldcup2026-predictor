@@ -1,4 +1,4 @@
-"""Tests de calibración: fiabilidad/ECE (puro numpy) y Platt (sklearn)."""
+"""Calibration tests: reliability/ECE (pure numpy) and Platt (sklearn)."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from worldcup.evaluation.calibration import ece, fit_platt, reliability_bins
 def _alternating(
     p_home: float, p_draw: float, p_away: float, n: int = 100
 ) -> list[Prediction]:
-    # local y visita se alternan (cada uno ocurre la mitad de las veces); nunca empate.
+    # home and away alternate (each occurs half the time); never a draw.
     return [
         Prediction((p_home, p_draw, p_away), 0 if i % 2 == 0 else 2) for i in range(n)
     ]
@@ -20,7 +20,7 @@ def _alternating(
 def test_reliability_bin_observed_matches_predicted_when_calibrated() -> None:
     bins = reliability_bins(_alternating(0.5, 0.0, 0.5), n_bins=10)
     half = [b for b in bins if abs(b[0] - 0.5) < 0.06]
-    assert half and abs(half[0][1] - 0.5) < 0.05  # observado ~ predicho (0.5)
+    assert half and abs(half[0][1] - 0.5) < 0.05  # observed ~ predicted (0.5)
 
 
 def test_ece_low_when_calibrated() -> None:
@@ -55,6 +55,6 @@ def test_reliability_bins_rejects_empty_or_bad_bins() -> None:
 
 
 def test_fit_platt_rejects_empty_predictions() -> None:
-    # Guarda antes de importar sklearn: no necesita la dependencia para fallar.
+    # Guard before importing sklearn: doesn't need the dependency to fail.
     with pytest.raises(ValueError):
         fit_platt([])

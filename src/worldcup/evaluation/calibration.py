@@ -1,9 +1,10 @@
-"""Calibración del modelo de partido: fiabilidad/ECE y recalibración Platt por clase.
+"""Match model calibration: reliability/ECE and per-class Platt recalibration.
 
-``reliability_bins`` y ``ece`` son puros (numpy) y agrupan, por clase, la probabilidad
-predicha de cada resultado frente a si ocurrió. ``fit_platt`` ajusta una logística
-(sklearn, import perezoso) por clase (home/draw/away) y devuelve un calibrador que
-recalibra una predicción 1X2 y la renormaliza a sumar 1.
+``reliability_bins`` and ``ece`` are pure numpy and bucket, per class, the
+predicted probability of each outcome against whether it happened. ``fit_platt``
+fits a logistic regression (sklearn, lazy import) per class (home/draw/away) and
+returns a calibrator that recalibrates a 1X2 prediction and renormalizes it to
+sum to 1.
 """
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ _NUM_OUTCOMES = 3
 
 
 def _pooled_points(predictions: list[Prediction]) -> tuple[np.ndarray, np.ndarray]:
-    """Aplana a puntos ``(prob_predicha_clase, ocurrió)`` sobre las 3 clases."""
+    """Flatten to ``(predicted_class_prob, occurred)`` points across the 3 classes."""
     probs: list[float] = []
     occurred: list[float] = []
     for pred in predictions:
@@ -31,11 +32,11 @@ def _pooled_points(predictions: list[Prediction]) -> tuple[np.ndarray, np.ndarra
 def reliability_bins(
     predictions: list[Prediction], n_bins: int
 ) -> list[tuple[float, float, int]]:
-    """Curva de fiabilidad: ``[(prob, frecuencia, n)]`` por bin no vacío."""
+    """Reliability curve: ``[(prob, frequency, n)]`` for each non-empty bin."""
     if not predictions:
-        raise ValueError("reliability_bins requiere al menos una predicción")
+        raise ValueError("reliability_bins requires at least one prediction")
     if n_bins < 1:
-        raise ValueError("n_bins debe ser >= 1")
+        raise ValueError("n_bins must be >= 1")
     probs, occurred = _pooled_points(predictions)
     edges = np.linspace(0.0, 1.0, n_bins + 1)
     bins: list[tuple[float, float, int]] = []
@@ -54,18 +55,16 @@ def reliability_bins(
 
 
 def ece(predictions: list[Prediction], n_bins: int) -> float:
-    """Expected Calibration Error: media ponderada de ``|prob_media − observada|``."""
+    """Expected Calibration Error: weighted mean of ``|mean_prob - observed|``."""
     bins = reliability_bins(predictions, n_bins)
     total = sum(count for _, _, count in bins)
-    if (
-        total == 0
-    ):  # inalcanzable con entrada válida; nunca devolver 0.0 (el óptimo de ECE)
-        raise ValueError("sin muestras para calcular ECE")
+    if total == 0:  # unreachable with valid input; never return 0.0 (ECE's optimum)
+        raise ValueError("no samples to compute ECE")
     return sum((count / total) * abs(mean_p - obs) for mean_p, obs, count in bins)
 
 
 class _ConstantModel:
-    """Sustituto cuando una clase nunca/siempre ocurre (logística no entrenable)."""
+    """Stand-in for when a class never/always occurs (logistic regression can't fit)."""
 
     def __init__(self, rate: float) -> None:
         self._rate = rate
@@ -75,7 +74,7 @@ class _ConstantModel:
 
 
 class PlattCalibrator:
-    """Recalibra una predicción 1X2 con una logística por resultado y renormaliza."""
+    """Recalibrates a 1X2 prediction with a per-outcome logistic and renormalizes."""
 
     def __init__(self, models: list[Any]) -> None:
         self._models = models
@@ -94,9 +93,9 @@ class PlattCalibrator:
 
 
 def fit_platt(predictions: list[Prediction]) -> PlattCalibrator:
-    """Ajusta una logística por clase (Platt) sobre las predicciones del backtest."""
+    """Fit one logistic regression per class (Platt scaling) on backtest predictions."""
     if not predictions:
-        raise ValueError("predictions vacío: no se puede ajustar Platt")
+        raise ValueError("predictions is empty: cannot fit Platt scaling")
     from sklearn.linear_model import LogisticRegression
 
     models: list[Any] = []
@@ -104,7 +103,7 @@ def fit_platt(predictions: list[Prediction]) -> PlattCalibrator:
         features = np.array([[p.probs[outcome]] for p in predictions])
         target = np.array([1 if p.actual == outcome else 0 for p in predictions])
         if len(set(target.tolist())) < 2:
-            # La clase nunca/siempre ocurre: la logística no se puede ajustar.
+            # Class never/always occurs: logistic regression can't fit.
             models.append(_ConstantModel(float(target.mean())))
         else:
             model = LogisticRegression()

@@ -1,12 +1,13 @@
-"""Interfaz estable de modelo de partido + helpers de marcador.
+"""Stable match-model interface plus scoreline helpers.
 
-Cualquier modelo (hoy, Dixon-Coles) implementa
-:class:`MatchModel.score_matrix` — la distribución conjunta de marcadores. De ahí se
-derivan las probabilidades 1X2 (``outcome_proba``) y el muestreo de marcadores para la
-simulación (``sample_scoreline``). El resto del proyecto depende solo de esta interfaz.
+Any model (currently Dixon-Coles) implements :class:`MatchModel.score_matrix`
+— the joint scoreline distribution. From that we derive 1X2 probabilities
+(``outcome_proba``) and scoreline sampling for the simulation
+(``sample_scoreline``). The rest of the project depends only on this
+interface.
 
-Convención de la matriz: ``score_matrix[i, j] = P(local marca i, visitante marca j)``;
-filas = goles del local, columnas = goles del visitante.
+Matrix convention: ``score_matrix[i, j] = P(home scores i, away scores j)``;
+rows = home goals, columns = away goals.
 """
 
 from __future__ import annotations
@@ -19,7 +20,7 @@ import numpy as np
 
 @dataclass(frozen=True, slots=True)
 class MatchOutcome:
-    """Probabilidades 1X2 de un partido (suman 1)."""
+    """1X2 probabilities for a match (sum to 1)."""
 
     home_win: float
     draw: float
@@ -27,10 +28,10 @@ class MatchOutcome:
 
 
 def outcome_probabilities(score_matrix: np.ndarray) -> MatchOutcome:
-    """Agrega la matriz de marcadores en probabilidades 1X2.
+    """Aggregate the scoreline matrix into 1X2 probabilities.
 
-    Victoria local = triángulo inferior (``i > j``); empate = diagonal; victoria
-    visitante = triángulo superior (``i < j``).
+    Home win = lower triangle (``i > j``); draw = diagonal; away win = upper
+    triangle (``i < j``).
     """
     home_win = float(np.tril(score_matrix, -1).sum())
     away_win = float(np.triu(score_matrix, 1).sum())
@@ -41,10 +42,10 @@ def outcome_probabilities(score_matrix: np.ndarray) -> MatchOutcome:
 def sample_scoreline(
     score_matrix: np.ndarray, rng: np.random.Generator
 ) -> tuple[int, int]:
-    """Muestrea un marcador ``(goles_local, goles_visitante)`` de la matriz.
+    """Sample a ``(home_goals, away_goals)`` scoreline from the matrix.
 
-    Usa el RNG sembrado del proyecto (:func:`worldcup.rng.get_rng`) para que sea
-    reproducible. La matriz debe estar normalizada (sumar 1).
+    Uses the project's seeded RNG (:func:`worldcup.rng.get_rng`) so results
+    are reproducible. The matrix must be normalized (sum to 1).
     """
     n_cols = score_matrix.shape[1]
     flat = score_matrix.ravel()
@@ -53,18 +54,18 @@ def sample_scoreline(
 
 
 class MatchModel(ABC):
-    """Interfaz de modelo de partido. Los modelos implementan ``score_matrix``."""
+    """Match-model interface. Models implement ``score_matrix``."""
 
     @abstractmethod
     def score_matrix(
         self, rating_home: float, rating_away: float, home_advantage: float = 0.0
     ) -> np.ndarray:
-        """Distribución conjunta de marcadores; suma 1, forma ``(n+1, n+1)``."""
+        """Joint scoreline distribution; sums to 1, shape ``(n+1, n+1)``."""
 
     def outcome_proba(
         self, rating_home: float, rating_away: float, home_advantage: float = 0.0
     ) -> MatchOutcome:
-        """Probabilidades 1X2 derivadas de :meth:`score_matrix` (heredable)."""
+        """1X2 probabilities derived from :meth:`score_matrix` (inheritable)."""
         return outcome_probabilities(
             self.score_matrix(rating_home, rating_away, home_advantage)
         )

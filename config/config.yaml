@@ -1,102 +1,104 @@
 # =============================================================================
-# config.yaml — ÚNICA fuente de hiperparámetros, rutas, seed y modo.
-# Ningún número mágico vive en el código de modelo: todo va aquí.
-# Los valores marcados [ref:Hicruben] son defaults razonables tomados de la
-# referencia principal y VERIFICADOS contra su repo; son ajustables, no constantes
-# inmutables.
+# config.yaml — single source of hyperparameters, paths, seed, and mode.
+# No magic numbers live in the model code: everything goes here.
+# Values marked [ref:Hicruben] are reasonable defaults taken from the primary
+# reference and VERIFIED against its repo; they're tunable, not fixed
+# constants.
 # =============================================================================
 
 project:
   name: worldcup2026-predictor
-  seed: 42                 # semilla global -> worldcup.rng.get_rng(seed)
+  seed: 42                 # global seed -> worldcup.rng.get_rng(seed)
   mode: live               # live (DEFAULT) | pre_tournament
 
 paths:
-  data_raw: data/raw               # INMUTABLE (snapshots)
-  data_processed: data/processed   # features listos
+  data_raw: data/raw               # IMMUTABLE (snapshots)
+  data_processed: data/processed   # ready-to-use features
   figures: outputs/figures
   videos: outputs/videos
 
 # ---------------------------------------------------------------------------
-# Datos. Todas las fuentes live se acceden tras LiveResultsProvider.
-# Esquemas VERIFICADOS el 16 jun 2026.
+# Data. All live sources go through LiveResultsProvider.
+# Schemas VERIFIED on Jun 16 2026.
 # ---------------------------------------------------------------------------
 data:
-  historical:               # base de Elo + backtest
+  historical:               # Elo base + backtest
     source: martj42/international_results
     results_url: https://raw.githubusercontent.com/martj42/international_results/master/results.csv
     shootouts_url: https://raw.githubusercontent.com/martj42/international_results/master/shootouts.csv
-  schedule:                 # backbone de fixtures 2026
+  schedule:                 # 2026 fixture backbone
     source: openfootball/worldcup.json
     url: https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json
-  live:                     # football-data.org v4: free, cubre WC2026 sin límite de temporada
+  live:                     # football-data.org v4: free, covers WC2026, no season limit
     provider: football_data
     base_url: https://api.football-data.org/v4
-    competition_code: WC             # código de competición (Mundial)
-    token_env: FOOTBALL_DATA_TOKEN   # el token va en .env, NUNCA en este archivo
-    poll_interval_seconds: 900       # 15 min entre sondeos (free: 10 req/min)
+    competition_code: WC             # competition code (World Cup)
+    token_env: FOOTBALL_DATA_TOKEN   # token lives in .env, NEVER in this file
+    poll_interval_seconds: 900       # 15 min between polls (free tier: 10 req/min)
   snapshots:
     dir: data/raw
     filename_pattern: "results_{ts}.parquet"   # ts = YYYYMMDDtHHMM
-    latest_pointer: latest.txt                 # apunta al snapshot más reciente
+    latest_pointer: latest.txt                 # points to the most recent snapshot
 
 # ---------------------------------------------------------------------------
-# Elo dinámico (features/elo.py). El factor k pondera por importancia del partido
-# y por margen de goles.
+# Dynamic Elo (features/elo.py). The k factor weights by match importance
+# and goal margin.
 # ---------------------------------------------------------------------------
 elo:
-  initial_rating: 1500.0          # rating base para equipos sin historia
-  home_advantage: 75.0            # bono Elo de localía         [ref:Hicruben]
-  host_advantage: 37.5            # bono de sede (Mundial)      [ref:Hicruben]
-  recency_half_life_months: 48.0  # vida media del peso temporal (forma vs reputación).
-                                  # OJO: el backtest full-history prefiere half-lifes muy
-                                  # largos (240m+) por menor log-loss POR PARTIDO, pero eso
-                                  # sobre-concentra la prob. de campeón (Argentina ~30%, poco
-                                  # realista). 48m es la decisión de REALISMO de torneo, no
-                                  # solo de log-loss de partido. [decidido con el usuario]
-  base_lambda: 1.35               # goles esperados a diff Elo 0 [ref:Hicruben]
-  elo_per_goal_denominator: 300.0 # +1 gol esperado por 300 Elo (afinado vía backtest:
-                                  # 300 da predicciones más nítidas que el default 400)
-  lambda_min: 0.3                 # clip inferior de goles esp.  [ref:Hicruben]
-  lambda_max: 3.5                 # clip superior de goles esp.  [ref:Hicruben]
-  k_factors:                      # importancia (afinado vía backtest: ×1.2 sobre defaults
-                                  # Hicruben; minimiza log-loss out-of-sample 2023+)
+  initial_rating: 1500.0          # base rating for teams with no history
+  home_advantage: 75.0            # home Elo bonus                [ref:Hicruben]
+  host_advantage: 37.5            # host bonus (World Cup)        [ref:Hicruben]
+  recency_half_life_months: 48.0  # half-life of the time weight (form vs. reputation).
+                                  # HEADS UP: the full-history backtest prefers much
+                                  # longer half-lifes (240m+) for lower per-match
+                                  # log-loss, but that over-concentrates champion odds
+                                  # (Argentina ~30%, unrealistic). 48m is chosen for
+                                  # tournament realism over per-match log-loss.
+  base_lambda: 1.35               # expected goals at Elo diff 0  [ref:Hicruben]
+  elo_per_goal_denominator: 300.0 # +1 expected goal per 300 Elo (tuned via backtest:
+                                  # 300 gives sharper predictions than the 400 default)
+  lambda_min: 0.3                 # lower clip on expected goals  [ref:Hicruben]
+  lambda_max: 3.5                 # upper clip on expected goals  [ref:Hicruben]
+  k_factors:                      # importance weight (tuned via backtest: x1.2 over
+                                  # Hicruben defaults; minimizes out-of-sample
+                                  # log-loss 2023+)
     world_cup: 66.0
     continental: 60.0             # Euro, Copa América, etc.
     world_cup_qualifier: 48.0
     nations_league: 38.4
     default: 33.6
     friendly: 21.6
-  goal_margin:                    # multiplicador por margen (eloratings.net)
+  goal_margin:                    # margin multiplier (eloratings.net)
     two_goal: 1.5                 # |d| == 2
     offset: 11.0                  # |d| >= 3 -> (offset + |d|) / divisor
     divisor: 8.0
 
 # ---------------------------------------------------------------------------
-# Dixon-Coles (models/dixon_coles.py): corrección de marcadores bajos.
+# Dixon-Coles (models/dixon_coles.py): low-score correction.
 # ---------------------------------------------------------------------------
 dixon_coles:
-  rho: -0.13      # dependencia low-score (0-0,1-0,0-1,1-1)  [ref:Hicruben]
-  max_goals: 8    # tope de la matriz de marcadores
+  rho: -0.13      # low-score dependence (0-0,1-0,0-1,1-1)  [ref:Hicruben]
+  max_goals: 8    # cap on the scoreline matrix
 
 # ---------------------------------------------------------------------------
-# Monte Carlo condicional (simulation/tournament.py).
+# Conditional Monte Carlo (simulation/tournament.py).
 # ---------------------------------------------------------------------------
 simulation:
-  runs: 50000                 # nº de torneos simulados
-  extra_time_total_goals: 0.8 # goles esperados totales en prórroga [ref:Currybon30]
-  hosts:                      # sedes WC2026: +elo.host_advantage en sus partidos simulados
+  runs: 50000                 # number of simulated tournaments
+  extra_time_total_goals: 0.8 # total expected goals in extra time [ref:Currybon30]
+  hosts:                      # WC2026 hosts: get +elo.host_advantage in their matches
     - United States
     - Mexico
     - Canada
 
 # ---------------------------------------------------------------------------
-# Evaluación (evaluation/backtest.py + calibration.py).
+# Evaluation (evaluation/backtest.py + calibration.py).
 # ---------------------------------------------------------------------------
 evaluation:
-  burn_in_matches: 150       # partidos de calentamiento antes de evaluar [ref:Hicruben]
-  history_window_days: 36500 # ventana de refit del backtest. Debe ser >> recency_half_life:
-                              # con half-life 48m, 8 años (lo previo) truncaba ~25% de peso
-                              # en el borde y subestimaba a las potencias. 36500 d (~100 a)
-                              # es full-history efectiva -> el backtest evalúa el MISMO Elo
-                              # que producción (que usa todo el histórico). [sync backtest<->prod]
+  burn_in_matches: 150       # warm-up matches before evaluation starts [ref:Hicruben]
+  history_window_days: 36500 # backtest refit window. Must be >> recency_half_life:
+                              # with a 48m half-life, 8 years (the previous value)
+                              # truncated ~25% of the weight at the edge and
+                              # underrated the top teams. 36500 days (~100y) is
+                              # effectively full-history -> the backtest evaluates the
+                              # SAME Elo as production. [backtest<->prod kept in sync]

@@ -1,10 +1,11 @@
-"""Dashboard interactivo (Streamlit): lee los artefactos del pipeline y los muestra.
+"""Interactive dashboard (Streamlit): reads pipeline artifacts and displays them.
 
-Solo glue de Streamlit; la lógica testeable vive en ``worldcup.pipeline``/``viz``.
-"Re-simular" dispara el CLI del pipeline (subprocess), reusando la única orquestación.
-El panel de "Próximos partidos" predice en vivo cada fixture por jugar reusando
-``predict_fixture`` (vía ``outcome_from_ratings``), ajustando el Elo una sola vez.
-Ejecutar: ``streamlit run app/dashboard.py``.
+Just Streamlit glue; the testable logic lives in ``worldcup.pipeline``/``viz``.
+"Re-simulate" triggers the pipeline CLI (subprocess), reusing the single
+orchestration path. The "Upcoming matches" panel predicts each unplayed
+fixture live, reusing ``predict_fixture`` (via ``outcome_from_ratings``) and
+fitting Elo only once.
+Run: ``streamlit run app/dashboard.py``.
 """
 
 from __future__ import annotations
@@ -42,14 +43,14 @@ def _config() -> Config:
 
 @st.cache_data(show_spinner=False)
 def _known_teams(results_csv: str) -> set[str]:
-    """Selecciones presentes en el histórico (para detectar cruces aún sin definir)."""
+    """Teams present in the historical data (to detect fixtures not yet defined)."""
     history = parse_results_csv(Path(results_csv).read_text())
     return {m.home_team for m in history} | {m.away_team for m in history}
 
 
 @st.cache_data(show_spinner=False)
 def _ratings(results_csv: str, ref_iso: str) -> dict[str, float]:
-    """Ajusta el Elo una sola vez por carga (cacheado por histórico + fecha)."""
+    """Fit Elo once per load (cached by history + date)."""
     history = parse_results_csv(Path(results_csv).read_text())
     return fit_elo(history, _config().elo, reference_date=date.fromisoformat(ref_iso))
 
@@ -63,7 +64,7 @@ def _predict_card(
     ref_iso: str,
     results_csv: str,
 ) -> dict[str, float]:
-    """1X2 (y avance si es eliminatoria) de un fixture, cacheado por sus parámetros."""
+    """1X2 (and advance probability if knockout) for a fixture, cached by its params."""
     config = _config()
     ratings = _ratings(results_csv, ref_iso)
     outcome, _ = outcome_from_ratings(home, away, ratings, config, host=host)
@@ -76,7 +77,7 @@ def _predict_card(
 
 
 def _bar_html(p_home: float, p_draw: float, p_away: float) -> str:
-    """Barra 1X2 apilada (local en acento, empate y visita en grises)."""
+    """Stacked 1X2 bar (home in accent color, draw and away in grays)."""
     return (
         '<div style="display:flex;height:8px;border-radius:999px;overflow:hidden;'
         'margin:6px 0;">'
@@ -89,7 +90,7 @@ def _bar_html(p_home: float, p_draw: float, p_away: float) -> str:
 def _predicted_card_html(
     stage: str, fecha: str, home: str, away: str, card: dict[str, float]
 ) -> str:
-    """Tarjeta de un partido con 1X2, ganador resaltado y (si aplica) avance."""
+    """Match card with 1X2, favored side highlighted, and advance prob if knockout."""
     home_fav = card["home"] >= card["away"] and card["home"] >= card["draw"]
     away_fav = card["away"] > card["home"] and card["away"] >= card["draw"]
     home_style = f"color:{_ACCENT};font-weight:600;" if home_fav else ""
@@ -103,7 +104,7 @@ def _predicted_card_html(
             leader, p_adv = away, 1.0 - home_adv
         advance = (
             '<div style="font-size:13px;color:#555;border-top:1px solid #eee;'
-            'padding-top:6px;margin-top:6px;">Avanza: '
+            'padding-top:6px;margin-top:6px;">Advances: '
             f"<b>{leader} {p_adv:.0%}</b></div>"
         )
     return (
@@ -117,27 +118,27 @@ def _predicted_card_html(
         f"{_bar_html(card['home'], card['draw'], card['away'])}"
         '<div style="display:flex;justify-content:space-between;font-size:12px;'
         f'color:#555;"><span>{card["home"]:.0%}</span>'
-        f'<span>Empate {card["draw"]:.0%}</span><span>{card["away"]:.0%}</span></div>'
+        f'<span>Draw {card["draw"]:.0%}</span><span>{card["away"]:.0%}</span></div>'
         f"{advance}</div>"
     )
 
 
 def _pending_card_html(stage: str, fecha: str) -> str:
-    """Tarjeta de un cruce aún sin definir (no se puede predecir TBD vs TBD)."""
+    """Card for a fixture not yet defined (can't predict TBD vs TBD)."""
     return (
         '<div style="border:1px solid #e6e6e6;border-radius:12px;padding:14px 16px;'
         'margin-bottom:12px;background:#fafafa;color:#999;">'
         '<div style="display:flex;justify-content:space-between;font-size:12px;">'
         f"<span>{stage}</span><span>{fecha}</span></div>"
         '<div style="font-size:13px;margin-top:10px;">'
-        "Esperando resultados previos</div>"
+        "Waiting on earlier results</div>"
         "</div>"
     )
 
 
 def _host_for(home: str, away: str, hosts: set[str]) -> str | None:
-    """El anfitrión del partido, o ``None``. Si ambos son sede se cancela (neutral),
-    igual que la ventaja neta de sede en la simulación de torneo."""
+    """The match's host team, or ``None``. If both are hosts it cancels out
+    (neutral), matching how net host advantage works in the tournament sim."""
     if home in hosts and away not in hosts:
         return home
     if away in hosts and home not in hosts:
@@ -146,10 +147,10 @@ def _host_for(home: str, away: str, hosts: set[str]) -> str | None:
 
 
 def _match_predictor_section(config: Config, run: RunArtifact) -> None:
-    """Panel "Próximos partidos": predice en vivo cada fixture por jugar."""
-    st.subheader("Próximos partidos")
+    """Upcoming-matches panel: predicts each unplayed fixture live."""
+    st.subheader("Upcoming matches")
     if not run.fixtures:
-        st.info("No quedan partidos por jugar.")
+        st.info("No matches left to play.")
         return
     results_csv = str(_ROOT / config.paths.data_raw / "results.csv")
     known = _known_teams(results_csv)
@@ -174,7 +175,7 @@ def _match_predictor_section(config: Config, run: RunArtifact) -> None:
 
 
 def _rerun_pipeline() -> subprocess.CompletedProcess[str]:
-    """Dispara el CLI del pipeline en modo live (reusa la única orquestación)."""
+    """Trigger the pipeline CLI in live mode (reuses the single orchestration path)."""
     return subprocess.run(
         [sys.executable, str(_ROOT / "scripts" / "run_pipeline.py"), "--mode", "live"],
         cwd=_ROOT,
@@ -185,34 +186,34 @@ def _rerun_pipeline() -> subprocess.CompletedProcess[str]:
 
 
 def main() -> None:
-    st.set_page_config(page_title="Predictor Mundial 2026", layout="wide")
+    st.set_page_config(page_title="World Cup 2026 Predictor", layout="wide")
     config = _config()
     run = load_latest_run(_ROOT / config.paths.data_processed)
 
     title_col, button_col = st.columns([4, 1])
-    title_col.title("Predictor Mundial 2026")
+    title_col.title("World Cup 2026 Predictor")
     if run is not None:
-        title_col.caption(f"Actualizado {run.timestamp}")
-    if button_col.button("Re-simular"):
-        with st.spinner("Re-simulando…"):
+        title_col.caption(f"Updated {run.timestamp}")
+    if button_col.button("Re-simulate"):
+        with st.spinner("Re-simulating…"):
             result = _rerun_pipeline()
         if result.returncode == 0:
             st.cache_data.clear()
-            st.success("Recarga la página para ver la actualización.")
+            st.success("Reload the page to see the update.")
         else:
-            st.error(result.stderr or "Falló la re-simulación.")
+            st.error(result.stderr or "Re-simulation failed.")
 
     if run is None:
-        st.info("Todavía no hay corridas. Corre el pipeline primero (make run).")
+        st.info("No runs yet. Run the pipeline first (make run).")
         return
 
-    st.subheader("Probabilidad de campeón")
+    st.subheader("Championship probability")
     champion = {team: probs["champion"] for team, probs in run.probabilities.items()}
     rows = prepare_champion_ranking(champion, top_n=15)
     st.dataframe(
         {
-            "Selección": [r.team for r in rows],
-            "P(campeón)": [f"{r.prob:.1%}" for r in rows],
+            "Team": [r.team for r in rows],
+            "P(champion)": [f"{r.prob:.1%}" for r in rows],
         },
         hide_index=True,
     )
@@ -220,29 +221,29 @@ def main() -> None:
     _match_predictor_section(config, run)
 
     if run.groups:
-        st.subheader("Probabilidad de avance por grupo")
+        st.subheader("Group advance probability")
         table = prepare_group_table(run.groups, run.probabilities)
         group_cols = st.columns(4)
         for index, (letter, group_rows) in enumerate(sorted(table.items())):
             col = group_cols[index % 4]
-            col.markdown(f"**Grupo {letter}**")
+            col.markdown(f"**Group {letter}**")
             col.dataframe(
                 {
-                    "Selección": [g.team for g in group_rows],
-                    "P(avance)": [f"{g.p_advance:.0%}" for g in group_rows],
+                    "Team": [g.team for g in group_rows],
+                    "P(advance)": [f"{g.p_advance:.0%}" for g in group_rows],
                 },
                 hide_index=True,
             )
     else:
-        st.info("Esta corrida no incluye grupos; re-simula para verlas.")
+        st.info("This run has no groups; re-simulate to see them.")
 
-    st.subheader("Detalle por selección")
-    team = st.selectbox("Selección", sorted(run.probabilities))
+    st.subheader("Team detail")
+    team = st.selectbox("Team", sorted(run.probabilities))
     detail = prepare_team_detail(run.probabilities, team)
     st.dataframe(
         {
-            "Ronda": [d.label for d in detail],
-            "Probabilidad": [f"{d.prob:.1%}" for d in detail],
+            "Round": [d.label for d in detail],
+            "Probability": [f"{d.prob:.1%}" for d in detail],
         },
         hide_index=True,
     )

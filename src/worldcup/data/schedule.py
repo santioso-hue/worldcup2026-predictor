@@ -1,22 +1,23 @@
-"""Schedule backbone del WC2026: parser de openfootball -> fixtures normalizados.
+"""WC2026 schedule backbone: openfootball parser -> normalized fixtures.
 
-Es la **espina dorsal** del torneo: los 104 partidos (72 de grupo + 32 de
-eliminatoria), los 12 grupos de 4 y la estructura del bracket. Los resultados live
-(football-data.org) se adjuntan luego a estos fixtures por ``match_id``, de modo que un
-cambio de proveedor no rompe la identidad de los partidos.
+This is the tournament's **backbone**: the 104 matches (72 group + 32 knockout),
+the 12 groups of 4, and the bracket structure. Live results (football-data.org) get
+attached to these fixtures later via ``match_id``, so a provider swap never breaks
+match identity.
 
-Funciones **puras** (sin I/O): reciben el JSON ya cargado. La descarga vive en
-``download.py``. El esquema por partido está VERIFICADO contra openfootball:
+**Pure** functions (no I/O): they take already-loaded JSON. Downloading lives in
+``download.py``. The per-match schema is VERIFIED against openfootball:
 
     { "round": "Matchday 1", "date": "YYYY-MM-DD", "time": "13:00 UTC-6",
       "team1": "...", "team2": "...", "group": "Group A",
       "score": {"ft": [h, a], "ht": [h, a]}, "ground": "..." }
 
-*Supuesto (envoltorio):* el archivo agrupa los partidos bajo ``"matches"`` o bajo
-``"rounds"[].matches``; soportamos ambos y fallamos ruidosamente si no reconocemos el
-formato (no inventamos estructura). openfootball no trae estado: inferimos ``FINISHED``
-si hay ``score.ft`` y ``SCHEDULED`` en caso contrario (un archivo estático no tiene
-``in_play``). Prórroga/penales de eliminatorias se toman del proveedor live, no de aquí.
+*Assumption (wrapper):* the file groups matches under ``"matches"`` or under
+``"rounds"[].matches``; we support both and fail loudly if neither shape shows up
+(no guessing at structure). openfootball carries no status field: we infer
+``FINISHED`` when ``score.ft`` is present and ``SCHEDULED`` otherwise (a static file
+has no ``in_play``). Knockout extra-time/penalties come from the live provider, not
+from here.
 """
 
 from __future__ import annotations
@@ -27,14 +28,14 @@ from datetime import datetime, timedelta, timezone
 from .live_results import MatchStatus, NormalizedMatch
 from .team_names import canonical_openfootball_team
 
-# Estructura esperada del torneo (para validación, verificado).
+# Expected tournament structure (for validation, verified).
 EXPECTED_GROUPS = 12
 EXPECTED_TEAMS_PER_GROUP = 4
 EXPECTED_GROUP_MATCHES = 72
 EXPECTED_KNOCKOUT_MATCHES = 32
 EXPECTED_TOTAL_MATCHES = 104
 
-# Rondas de eliminatoria 2026 y su n.º de partidos (para validar/etiquetar).
+# 2026 knockout rounds and their match counts (for validation/labeling).
 KNOCKOUT_MATCH_COUNTS: dict[str, int] = {
     "Round of 32": 16,
     "Round of 16": 8,
@@ -49,46 +50,47 @@ _TZ_RE = re.compile(r"UTC([+-]\d{1,2})(?::?(\d{2}))?")
 
 
 def _slug(text: str) -> str:
-    """Normaliza un nombre a un slug estable (minúsculas, sin signos)."""
+    """Normalize a name into a stable slug (lowercase, no punctuation)."""
     return _SLUG_RE.sub("-", text.lower()).strip("-")
 
 
 def make_match_id(date: str, home: str, away: str) -> str:
-    """Construye un ``match_id`` determinista y estable entre proveedores.
+    """Build a deterministic ``match_id`` that's stable across providers.
 
-    Forma: ``"{date}-{home}-vs-{away}"`` con nombres en slug. La clave de unión real
-    con el feed live es (fecha, local, visita); por eso el id la codifica.
+    Shape: ``"{date}-{home}-vs-{away}"`` with slugged names. The real join key
+    against the live feed is (date, home, away), which is why the id encodes it.
 
     Parameters
     ----------
     date:
-        Fecha ``"YYYY-MM-DD"``. Los llamadores usan la **fecha UTC del kickoff** para
-        que el id coincida entre proveedores (ver ``parse_match`` y ``football_data``).
+        Date as ``"YYYY-MM-DD"``. Callers pass the **UTC kickoff date** so the id
+        lines up across providers (see ``parse_match`` and ``football_data``).
     home, away:
-        Nombres de las selecciones local y visitante.
+        Home and away team names.
 
     Returns
     -------
     str
-        Identificador estable, p. ej. ``"2026-06-11-mexico-vs-south-africa"``.
+        Stable identifier, e.g. ``"2026-06-11-mexico-vs-south-africa"``.
     """
     return f"{date}-{_slug(home)}-vs-{_slug(away)}"
 
 
 def _parse_kickoff(date_str: str, time_str: str | None) -> datetime:
-    """Convierte ``date`` + ``time`` de openfootball a un ``datetime`` en UTC.
+    """Convert openfootball's ``date`` + ``time`` into a UTC ``datetime``.
 
-    ``time`` viene como ``"HH:MM UTC±H"`` (offset embebido).
+    ``time`` comes as ``"HH:MM UTC±H"`` (offset embedded).
 
-    - Si ``time`` **falta**, se usa medianoche UTC de la fecha *local* de openfootball.
-      En ese caso el ``match_id`` queda anclado a esa fecha local, no a la UTC real del
-      kickoff: la unión cross-proveedor solo está garantizada para partidos con hora
-      conocida (todos los jugados/finalizados la tienen). Los partidos sin hora son
-      eliminatorias TBD aún sin resolver, que todavía no se unen a resultados live; por
-      eso aquí NO se hace fail-loud (rompería el parseo de esas entradas legítimas).
-    - Si ``time`` **está presente pero no se puede parsear**, se lanza ``ValueError``
-      (fail loud): como el ``match_id`` se deriva de la fecha UTC del kickoff, un tiempo
-      mal interpretado corrompería silenciosamente la clave de unión. Mejor enterarse.
+    - If ``time`` is **missing**, we fall back to UTC midnight on openfootball's
+      *local* date. The ``match_id`` then anchors to that local date rather than
+      the real UTC kickoff date, so cross-provider joins are only guaranteed for
+      matches with a known time (every played/finished match has one). Matches
+      without a time are unresolved knockout TBDs that don't join to live results
+      yet, so we deliberately do NOT fail loud here — that would break parsing of
+      those legitimate entries.
+    - If ``time`` **is present but unparseable**, we raise ``ValueError`` (fail
+      loud): since ``match_id`` derives from the UTC kickoff date, a misread time
+      would silently corrupt the join key. Better to find out immediately.
     """
     base = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
     if not time_str:
@@ -98,7 +100,7 @@ def _parse_kickoff(date_str: str, time_str: str | None) -> datetime:
         hour, minute = (int(x) for x in hhmm.split(":"))
         match = _TZ_RE.search(tz_part)
         if match is None:
-            raise ValueError(f"offset de zona no reconocido en {time_str!r}")
+            raise ValueError(f"unrecognized timezone offset in {time_str!r}")
         off_hours = int(match.group(1))
         off_minutes = int(match.group(2) or 0)
         sign = -1 if off_hours < 0 else 1
@@ -107,12 +109,12 @@ def _parse_kickoff(date_str: str, time_str: str | None) -> datetime:
         return local.astimezone(timezone.utc)
     except ValueError as exc:
         raise ValueError(
-            f"time inválido {time_str!r} para fecha {date_str!r}: {exc}"
+            f"invalid time {time_str!r} for date {date_str!r}: {exc}"
         ) from exc
 
 
 def _pair(value: object) -> tuple[int, int] | None:
-    """Devuelve ``(int, int)`` si ``value`` es un par de enteros, si no ``None``."""
+    """Return ``(int, int)`` if ``value`` is a pair of ints, else ``None``."""
     if (
         isinstance(value, (list, tuple))
         and len(value) == 2
@@ -123,23 +125,23 @@ def _pair(value: object) -> tuple[int, int] | None:
 
 
 def parse_match(raw: dict, source: str = "openfootball") -> NormalizedMatch:
-    """Convierte una entrada de partido de openfootball a :class:`NormalizedMatch`.
+    """Convert an openfootball match entry into a :class:`NormalizedMatch`.
 
     Parameters
     ----------
     raw:
-        Dict con el esquema verificado de openfootball.
+        Dict following the verified openfootball schema.
     source:
-        Etiqueta de origen (default ``"openfootball"``).
+        Source label (default ``"openfootball"``).
 
     Returns
     -------
     NormalizedMatch
-        Fixture normalizado. ``FINISHED`` si trae ``score.ft`` válido, si no
-        ``SCHEDULED``.
+        Normalized fixture. ``FINISHED`` if it carries a valid ``score.ft``,
+        ``SCHEDULED`` otherwise.
     """
-    # Canonicalizamos al espacio de nombres de martj42 (mismo criterio que el cliente
-    # live) ANTES de derivar el match_id, para que el Elo y el bono de sede acierten.
+    # Canonicalize to the martj42 namespace (same convention as the live client)
+    # BEFORE deriving match_id, so Elo lookups and the host bonus line up.
     home = canonical_openfootball_team(raw["team1"])
     away = canonical_openfootball_team(raw["team2"])
     date = raw["date"]
@@ -152,7 +154,7 @@ def parse_match(raw: dict, source: str = "openfootball") -> NormalizedMatch:
 
     group = raw.get("group")
     stage = group if group else raw.get("round", "")
-    # match_id desde la fecha UTC del kickoff (mismo ancla que el cliente live).
+    # match_id from the UTC kickoff date (same anchor as the live client).
     mid = make_match_id(kickoff.date().isoformat(), home, away)
 
     return NormalizedMatch(
@@ -173,19 +175,19 @@ def parse_match(raw: dict, source: str = "openfootball") -> NormalizedMatch:
 
 
 def parse_fixtures(matches: list[dict]) -> list[NormalizedMatch]:
-    """Parsea una lista de entradas de partido (ya aplanada)."""
+    """Parse a (already flattened) list of match entries."""
     return [parse_match(m) for m in matches]
 
 
 def parse_openfootball(doc: dict) -> list[NormalizedMatch]:
-    """Aplana el envoltorio de openfootball y parsea todos los fixtures.
+    """Flatten the openfootball wrapper and parse all fixtures.
 
-    Soporta ``doc["matches"]`` o ``doc["rounds"][].matches``.
+    Supports ``doc["matches"]`` or ``doc["rounds"][].matches``.
 
     Raises
     ------
     ValueError
-        Si el documento no tiene ninguna de las dos claves (formato no reconocido).
+        If the document has neither key (unrecognized format).
     """
     if "matches" in doc:
         matches = doc["matches"]
@@ -193,18 +195,18 @@ def parse_openfootball(doc: dict) -> list[NormalizedMatch]:
         matches = [m for r in doc["rounds"] for m in r.get("matches", [])]
     else:
         raise ValueError(
-            "Formato openfootball no reconocido: falta 'matches' o 'rounds'."
+            "Unrecognized openfootball format: missing 'matches' or 'rounds'."
         )
     return parse_fixtures(matches)
 
 
 def group_teams(matches: list[NormalizedMatch]) -> dict[str, list[str]]:
-    """Extrae los grupos y sus selecciones de los fixtures de fase de grupos.
+    """Extract groups and their teams from group-stage fixtures.
 
     Returns
     -------
     dict[str, list[str]]
-        Mapa ``"Group A" -> [equipos ordenados]``, ordenado por grupo.
+        Map of ``"Group A" -> [sorted teams]``, ordered by group.
     """
     groups: dict[str, set[str]] = {}
     for m in matches:
@@ -216,49 +218,49 @@ def group_teams(matches: list[NormalizedMatch]) -> dict[str, list[str]]:
 
 
 def validate_schedule(matches: list[NormalizedMatch]) -> list[str]:
-    """Comprueba que el schedule parseado tenga la estructura del WC2026.
+    """Check that the parsed schedule matches the WC2026 structure.
 
-    Usa las constantes ``EXPECTED_*`` para fallar ruidosamente ante un backbone parcial
-    o malformado (en vez de simular sobre un torneo incompleto). El pipeline debería
-    llamar a esta función tras ``parse_openfootball`` y abortar si devuelve problemas.
+    Uses the ``EXPECTED_*`` constants to fail loudly on a partial or malformed
+    backbone instead of simulating an incomplete tournament. The pipeline should
+    call this right after ``parse_openfootball`` and abort if it returns issues.
 
     Returns
     -------
     list[str]
-        Lista de discrepancias (vacía si la estructura es correcta).
+        List of discrepancies (empty if the structure checks out).
     """
     issues: list[str] = []
     total = len(matches)
     if total != EXPECTED_TOTAL_MATCHES:
-        issues.append(f"total {total} != {EXPECTED_TOTAL_MATCHES} partidos")
+        issues.append(f"total {total} != {EXPECTED_TOTAL_MATCHES} matches")
 
     groups = group_teams(matches)
     if len(groups) != EXPECTED_GROUPS:
-        issues.append(f"{len(groups)} grupos != {EXPECTED_GROUPS}")
+        issues.append(f"{len(groups)} groups != {EXPECTED_GROUPS}")
     for name, teams in groups.items():
         if len(teams) != EXPECTED_TEAMS_PER_GROUP:
-            issues.append(f"{name}: {len(teams)} equipos != {EXPECTED_TEAMS_PER_GROUP}")
+            issues.append(f"{name}: {len(teams)} teams != {EXPECTED_TEAMS_PER_GROUP}")
 
     group_matches = sum(1 for m in matches if m.stage.startswith("Group"))
     if group_matches != EXPECTED_GROUP_MATCHES:
-        issues.append(f"{group_matches} partidos de grupo != {EXPECTED_GROUP_MATCHES}")
+        issues.append(f"{group_matches} group matches != {EXPECTED_GROUP_MATCHES}")
     knockout_matches = total - group_matches
     if knockout_matches != EXPECTED_KNOCKOUT_MATCHES:
-        issues.append(f"eliminatoria {knockout_matches} != {EXPECTED_KNOCKOUT_MATCHES}")
+        issues.append(f"knockout {knockout_matches} != {EXPECTED_KNOCKOUT_MATCHES}")
     return issues
 
 
 def is_knockout_stage(stage: str) -> bool:
-    """``True`` si la etapa es de eliminatoria (no fase de grupos)."""
+    """``True`` if the stage is a knockout round (not the group stage)."""
     return not stage.startswith("Group")
 
 
 def remaining_fixtures(matches: list[NormalizedMatch]) -> list[NormalizedMatch]:
-    """Fixtures aún por jugar (estado != FINISHED), ordenados por kickoff."""
+    """Fixtures still to be played (status != FINISHED), sorted by kickoff."""
     pending = [m for m in matches if m.status is not MatchStatus.FINISHED]
     return sorted(pending, key=lambda m: m.kickoff_utc)
 
 
 def is_predictable(home: str, away: str, known_teams: set[str]) -> bool:
-    """``True`` si ambos equipos son selecciones reales (no slots KO sin resolver)."""
+    """``True`` if both teams are actual national teams (not unresolved KO slots)."""
     return home in known_teams and away in known_teams

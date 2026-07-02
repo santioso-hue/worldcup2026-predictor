@@ -1,4 +1,4 @@
-"""Tests de simulate_match: reglamentario, prórroga y penales (knockout)."""
+"""Tests for simulate_match: regulation, extra time, and penalties (knockout)."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from worldcup.simulation.match import simulate_match
 
 
 class _FixedDraw(MatchModel):
-    """Modelo de prueba que fuerza un empate ``g-g`` en el tiempo reglamentario."""
+    """Test model that forces a ``g-g`` draw in regulation."""
 
     def __init__(self, goals: int) -> None:
         n = goals + 2
@@ -24,7 +24,7 @@ class _FixedDraw(MatchModel):
 
 
 class _HomeWins2_0(MatchModel):
-    """Modelo de prueba que fuerza un 2-0 local."""
+    """Test model that forces a 2-0 home win."""
 
     def score_matrix(
         self, rating_home: float, rating_away: float, home_advantage: float = 0.0
@@ -48,7 +48,7 @@ def test_knockout_decisive_in_regulation() -> None:
 
 
 def test_knockout_draw_always_produces_a_winner() -> None:
-    # 1-1 forzado en reglamentario -> prórroga/penales -> SIEMPRE hay ganador.
+    # 1-1 forced in regulation -> extra time/penalties -> there's ALWAYS a winner.
     for seed in range(6):
         r = simulate_match(
             _FixedDraw(1), "A", "B", 1500.0, 1500.0, get_rng(seed), knockout=True
@@ -57,7 +57,7 @@ def test_knockout_draw_always_produces_a_winner() -> None:
 
 
 def test_penalties_decide_when_extra_time_is_scoreless() -> None:
-    # ET total 0 -> prórroga 0-0 siempre -> penales; con Elo local altísimo gana local.
+    # ET total 0 -> extra time always 0-0 -> penalties; huge home Elo edge, home wins.
     r = simulate_match(
         _FixedDraw(0),
         "A",

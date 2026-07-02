@@ -1,1 +1,1 @@
-"""Features: Elo dinámico y construcción de features para el modelo."""
+"""Features: dynamic Elo and feature construction for the model."""

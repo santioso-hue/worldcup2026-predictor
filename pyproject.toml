@@ -49,9 +49,9 @@ target-version = "py311"
 [tool.ruff.lint]
 # E/F = pycodestyle/pyflakes, I = isort, UP = pyupgrade, B = bugbear, SIM = simplify
 select = ["E", "F", "I", "UP", "B", "SIM"]
-# Reglas que dejamos sin migrar a propósito:
-#   UP017 -> preferimos `timezone.utc` explícito sobre `datetime.UTC`.
-#   UP042 -> `str, Enum` por compatibilidad/seguridad con pydantic (no `StrEnum`).
+# Rules left unmigrated on purpose:
+#   UP017 -> prefer explicit `timezone.utc` over `datetime.UTC`.
+#   UP042 -> `str, Enum` for pydantic compatibility/safety (not `StrEnum`).
 ignore = ["UP017", "UP042"]
 
 [tool.mypy]
@@ -60,8 +60,8 @@ disallow_untyped_defs = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 no_implicit_optional = true
-ignore_missing_imports = true   # libs sin stubs de tipos (p.ej. streamlit)
+ignore_missing_imports = true   # libs without type stubs (e.g. streamlit)
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]   # permite importar `worldcup` sin instalar el paquete
+pythonpath = ["src"]   # lets tests import `worldcup` without installing the package

@@ -1,14 +1,14 @@
-"""CLI del pipeline completo: carga/descarga → reconcile → simula → snapshot + figuras.
+"""Full-pipeline CLI: load/fetch -> reconcile -> simulate -> snapshot + figures.
 
-Modos: ``live`` (fetch del proveedor), ``--snapshot <ts>`` (replay) y
-``--mode pre_tournament`` (solo el schedule). ``--watch`` hace polling con
-``WatchTrigger``; sin ``--watch`` es una sola corrida (modelo cron). Todo el I/O vive
-aquí; la lógica pura está en ``worldcup.pipeline``.
+Modes: ``live`` (fetch from the provider), ``--snapshot <ts>`` (replay), and
+``--mode pre_tournament`` (schedule only). ``--watch`` polls via ``WatchTrigger``;
+without ``--watch`` it's a single run (cron model). All I/O lives here; the pure
+logic is in ``worldcup.pipeline``.
 
-El replay congela los *fixtures* (snapshot parquet) pero NO el histórico martj42
-(``results.csv``, caché compartida que las corridas live refrescan): reproduce
-exactamente dada la MISMA caché de histórico + semilla. Para reproducibilidad a prueba
-de refrescos habría que pinear el histórico junto al snapshot (pendiente).
+Replay freezes the *fixtures* (parquet snapshot) but NOT the martj42 history
+(``results.csv``, a shared cache that live runs refresh): it reproduces exactly
+given the SAME history cache + seed. Refresh-proof reproducibility would need
+pinning the history alongside the snapshot (not done yet).
 """
 
 from __future__ import annotations
@@ -45,7 +45,7 @@ _ROOT = Path(__file__).resolve().parents[1]
 
 
 def _load_dotenv() -> None:
-    """Carga ``_ROOT/.env`` (KEY=VALUE) sin pisar variables ya definidas."""
+    """Load ``_ROOT/.env`` (KEY=VALUE) without overriding already-set variables."""
     env_path = _ROOT / ".env"
     if not env_path.exists():
         return
@@ -61,19 +61,19 @@ def _load_history(
     config: Config, *, force_refresh: bool = False
 ) -> list[HistoricalMatch]:
     dest = config.paths.data_raw / "results.csv"
-    # Live re-descarga para Elo fresco; el replay usa la caché (determinista).
+    # Live re-fetches for a fresh Elo; replay uses the cache (deterministic).
     fetch_martj42(config.data.historical.results_url, dest, force=force_refresh)
     return parse_results_csv(dest.read_text())
 
 
 def _make_live_provider(config: Config) -> LiveResultsProvider:
-    """Construye el proveedor live (football-data.org) desde config (fail-loud)."""
+    """Build the live provider (football-data.org) from config (fail-loud)."""
     live = config.data.live
     if live.provider != "football_data":
-        raise typer.BadParameter(f"proveedor live desconocido: {live.provider}")
+        raise typer.BadParameter(f"unknown live provider: {live.provider}")
     token = os.environ.get(live.token_env)
     if not token:
-        raise typer.BadParameter(f"falta la variable de entorno {live.token_env}")
+        raise typer.BadParameter(f"missing environment variable {live.token_env}")
     return FootballDataProvider(token, live.base_url, live.competition_code)
 
 
@@ -86,19 +86,19 @@ def _load_incoming(
             snapshot, snaps.dir, filename_pattern=snaps.filename_pattern
         )
     if mode == "pre_tournament":
-        # El backbone openfootball trae los 104 partidos (72 grupo + 32 KO con etiquetas
-        # de slot): validamos la estructura y abortamos ruidosamente si está incompleta,
-        # en vez de simular un torneo roto. (El feed live tiene otra forma: no se valida
-        # aquí porque omite los 32 slots KO sin resolver.)
+        # The openfootball backbone has all 104 matches (72 group + 32 KO with slot
+        # labels): validate the structure and abort loudly if incomplete, rather than
+        # simulate a broken tournament. (The live feed has a different shape and isn't
+        # validated here — it omits the 32 unresolved KO slots.)
         schedule = parse_openfootball(fetch_openfootball(config.data.schedule.url))
         issues = validate_schedule(schedule)
         if issues:
             raise typer.BadParameter(
-                "schedule openfootball inválido: " + "; ".join(issues)
+                "invalid openfootball schedule: " + "; ".join(issues)
             )
         return schedule
     if mode != "live":
-        raise typer.BadParameter(f"modo desconocido: {mode}")
+        raise typer.BadParameter(f"unknown mode: {mode}")
     return _make_live_provider(config).get_schedule()
 
 
@@ -112,11 +112,11 @@ def _run_once(
     seed: int,
 ) -> str:
     snaps = config.data.snapshots
-    # El snapshot de reconcile (parquet + latest.txt) es el REGISTRO DE RESULTADOS LIVE:
-    # solo `live` lo escribe y solo `live` lo lee como `previous`. Si pre_tournament lo
-    # escribiera, una corrida live posterior lo tomaría como `previous` y reconciliaría
-    # fixtures de openfootball contra el feed live -> grupos corruptos. pre_tournament y
-    # replay igual escriben probabilities/figuras (dashboard), pero NO tocan esa cadena.
+    # The reconcile snapshot (parquet + latest.txt) is the LIVE RESULTS RECORD: only
+    # `live` writes it and only `live` reads it as `previous`. If pre_tournament wrote
+    # it, a later live run would pick it up as `previous` and reconcile openfootball
+    # fixtures against the live feed -> corrupted groups. pre_tournament and replay
+    # still write probabilities/figures (dashboard), but they don't touch this chain.
     is_live = snapshot is None and mode == "live"
     is_replay = snapshot is not None
     incoming = _load_incoming(config, mode, snapshot)
@@ -133,8 +133,8 @@ def _run_once(
         else []
     )
     history = _load_history(config, force_refresh=not is_replay)
-    # Baseline pre-torneo: el Elo solo usa partidos ANTES del primer fixture (excluye
-    # los resultados del torneo en curso). Live usa el Elo actual.
+    # Pre-tournament baseline: Elo only uses matches BEFORE the first fixture (excludes
+    # results from the ongoing tournament). Live uses the current Elo.
     history_cutoff: date | None = None
     if mode == "pre_tournament" and incoming:
         history_cutoff = min(m.kickoff_utc for m in incoming).date()
@@ -149,10 +149,11 @@ def _run_once(
         history_cutoff=history_cutoff,
     )
     ts = snapshot or make_timestamp()
-    # El replay escribe sus salidas con sufijo _replay para NO pisar el artefacto curado
-    # del mismo ts (p. ej. una corrida live de 50k); el puntero live tampoco se mueve.
+    # Replay writes its outputs with a _replay suffix so it doesn't overwrite the
+    # curated artifact for the same ts (e.g. a 50k live run); the live pointer doesn't
+    # move either.
     out_ts = f"{ts}_replay" if is_replay else ts
-    if is_live:  # solo live escribe la cadena de snapshots (parquet + latest.txt)
+    if is_live:  # only live writes the snapshot chain (parquet + latest.txt)
         save_snapshot(
             reconciled,
             ts,
@@ -173,8 +174,8 @@ def _run_once(
     )
     render_outputs(result, previous_probs, config.paths.figures, ts=out_ts)
     for match_id, anomaly in result.anomalies:
-        typer.echo(f"anomalía: {match_id}: {anomaly}")
-    typer.echo(f"listo: snapshot {out_ts}, {len(result.probabilities)} equipos")
+        typer.echo(f"anomaly: {match_id}: {anomaly}")
+    typer.echo(f"done: snapshot {out_ts}, {len(result.probabilities)} teams")
     return out_ts
 
 
@@ -187,12 +188,12 @@ def main(
     watch: bool = False,
     interval: int | None = None,
 ) -> None:
-    _load_dotenv()  # carga la API key desde .env si existe (modo live)
+    _load_dotenv()  # load the API key from .env if present (live mode)
     cfg = load_config(config)
     annex_c = load_annex_c(cfg.paths.data_raw / "annex_c_2026.json")
     resolved_runs = runs if runs is not None else cfg.simulation.runs
     resolved_seed = seed if seed is not None else cfg.project.seed
-    # mode cae a config.yaml (única fuente) si no se pasa por CLI.
+    # mode falls back to config.yaml (single source of truth) if not passed via CLI.
     resolved_mode = mode if mode is not None else cfg.project.mode.value
     resolved_interval = (
         interval if interval is not None else cfg.data.live.poll_interval_seconds

@@ -1,8 +1,8 @@
-"""Gráficos: preparación de datos (pura, testeable) + render matplotlib (fino).
+"""Charts: pure data prep (testable) + thin matplotlib rendering.
 
-Cada figura separa ``prepare_*`` (datos → estructura lista para plotear; puro, sin
-matplotlib) de ``render_*`` (dibuja la ``Figure``; matplotlib en import perezoso, sin
-pyplot). Toda la marca vive en ``theme.py``. Orden 1X2: local, empate, visita.
+Each figure splits ``prepare_*`` (data -> plot-ready structure; pure, no matplotlib)
+from ``render_*`` (draws the ``Figure``; lazy-imports matplotlib, no pyplot). All
+branding lives in ``theme.py``. 1X2 order: home, draw, away.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class RankingRow:
-    """Una fila del ranking de campeón."""
+    """One row of the champion ranking."""
 
     rank: int
     team: str
@@ -37,13 +37,13 @@ def prepare_champion_ranking(
     top_n: int = 10,
     min_delta: float = 0.005,
 ) -> list[RankingRow]:
-    """Top-N por P(título) desc (desempate por nombre), con delta vs snapshot previo.
+    """Top-N by P(title) desc (ties broken by name), with delta vs previous snapshot.
 
-    Delta ``up``/``down`` solo si el cambio supera ``min_delta`` (evita ruido). Sin
-    snapshot previo para el equipo, queda ``flat``.
+    Delta is ``up``/``down`` only if the change exceeds ``min_delta`` (avoids noise).
+    Teams missing from the previous snapshot get ``flat``.
     """
     if top_n < 1:
-        raise ValueError("top_n debe ser >= 1")
+        raise ValueError("top_n must be >= 1")
     ordered = sorted(probs.items(), key=lambda kv: (-kv[1], kv[0]))[:top_n]
     rows: list[RankingRow] = []
     for rank, (team, prob) in enumerate(ordered, start=1):
@@ -60,7 +60,7 @@ def prepare_champion_ranking(
 
 @dataclass(frozen=True)
 class BarSegment:
-    """Un segmento de la barra 1X2."""
+    """One segment of the 1X2 bar."""
 
     label: str
     value: float
@@ -76,20 +76,20 @@ def prepare_match_bar(
     *,
     tol: float = 1e-6,
 ) -> list[BarSegment]:
-    """Segmentos local/empate/visita; falla si las probabilidades no suman 1."""
+    """Home/draw/away segments; fails if the probabilities don't sum to 1."""
     total = p_home + p_draw + p_away
     if abs(total - 1.0) > tol:
-        raise ValueError(f"las probabilidades 1X2 deben sumar 1 (suma={total:.6f})")
+        raise ValueError(f"1X2 probabilities must sum to 1 (sum={total:.6f})")
     return [
         BarSegment(label=home, value=p_home, role="home"),
-        BarSegment(label="Empate", value=p_draw, role="draw"),
+        BarSegment(label="Draw", value=p_draw, role="draw"),
         BarSegment(label=away, value=p_away, role="away"),
     ]
 
 
 @dataclass(frozen=True)
 class HeatmapData:
-    """Región mostrada del heatmap y la celda modal (goles local, visita)."""
+    """Displayed region of the heatmap and its modal cell (home goals, away goals)."""
 
     grid: np.ndarray
     mode: tuple[int, int]
@@ -101,19 +101,19 @@ def prepare_score_heatmap(
     max_goals: int = 5,
     tol: float = 1e-6,
 ) -> HeatmapData:
-    """Valida la matriz y la recorta a la región 0..max_goals para mostrar."""
+    """Validate the matrix and crop it to the 0..max_goals region for display."""
     if max_goals < 1:
-        raise ValueError("max_goals debe ser >= 1")
+        raise ValueError("max_goals must be >= 1")
     arr = np.asarray(score_matrix, dtype=float)
     if arr.ndim != 2:
-        raise ValueError("score_matrix debe ser 2D")
+        raise ValueError("score_matrix must be 2D")
     if not np.isfinite(arr).all():
-        raise ValueError("score_matrix no puede contener NaN/inf")
+        raise ValueError("score_matrix cannot contain NaN/inf")
     if (arr < 0).any():
-        raise ValueError("score_matrix no puede tener probabilidades negativas")
+        raise ValueError("score_matrix cannot have negative probabilities")
     total = float(arr.sum())
     if abs(total - 1.0) > tol:
-        raise ValueError(f"score_matrix debe sumar 1 (suma={total:.6f})")
+        raise ValueError(f"score_matrix must sum to 1 (sum={total:.6f})")
     grid = arr[: max_goals + 1, : max_goals + 1]
     flat = int(grid.argmax())
     mode = (flat // grid.shape[1], flat % grid.shape[1])
@@ -122,7 +122,7 @@ def prepare_score_heatmap(
 
 @dataclass(frozen=True)
 class ReliabilityData:
-    """Puntos de la curva de fiabilidad (predicho vs observado) y conteo por bin."""
+    """Reliability curve points (predicted vs observed) and per-bin counts."""
 
     pred: list[float]
     observed: list[float]
@@ -130,9 +130,9 @@ class ReliabilityData:
 
 
 def prepare_reliability(bins: list[tuple[float, float, int]]) -> ReliabilityData:
-    """De ``calibration.reliability_bins``: separa columnas; falla si está vacío."""
+    """From ``calibration.reliability_bins``: split into columns; fails if empty."""
     if not bins:
-        raise ValueError("sin bins de fiabilidad que dibujar")
+        raise ValueError("no reliability bins to plot")
     return ReliabilityData(
         pred=[b[0] for b in bins],
         observed=[b[1] for b in bins],
@@ -140,13 +140,13 @@ def prepare_reliability(bins: list[tuple[float, float, int]]) -> ReliabilityData
     )
 
 
-# --- render: matplotlib (import perezoso, API orientada a objetos, sin pyplot) ---
+# --- render: matplotlib (lazy import, object-oriented API, no pyplot) ---
 
 _DELTA_GLYPH = {"up": "▲", "down": "▼", "flat": ""}
 
 
 def _new_figure(spec: ExportSpec, theme: Theme) -> tuple[Figure, Axes]:
-    """Figure headless del tamaño del spec, con fondo de marca (sin estado global)."""
+    """Headless Figure sized per spec, with the brand background (no global state)."""
     from matplotlib.figure import Figure
 
     fig = Figure(
@@ -165,7 +165,7 @@ def _strip_chrome(ax: Axes) -> None:
 
 
 def _apply_font(fig: Figure, theme: Theme) -> None:
-    """Fija la tipografía de marca en todo el texto de la figura (determinista)."""
+    """Set the brand font on every text element in the figure (deterministic)."""
     from matplotlib.text import Text
 
     for artist in fig.findobj(Text):
@@ -176,12 +176,12 @@ def _apply_font(fig: Figure, theme: Theme) -> None:
 def _draw_ranking_axes(
     ax: Axes, rows: list[RankingRow], theme: Theme, *, title: str
 ) -> None:
-    """Dibuja el ranking sobre ``ax`` (compartido por render y animación)."""
+    """Draw the ranking onto ``ax`` (shared by render and animation)."""
     positions = list(range(len(rows)))
     ax.barh(positions, [r.prob * 100 for r in rows], color=theme.accent)
     ax.set_yticks(positions)
     ax.set_yticklabels([r.team for r in rows], color=theme.text_primary)
-    ax.invert_yaxis()  # rank 1 arriba
+    ax.invert_yaxis()  # rank 1 on top
     color_by_delta = {"up": theme.up, "down": theme.down, "flat": theme.text_primary}
     for pos, row in zip(positions, rows, strict=True):
         ax.text(
@@ -204,10 +204,10 @@ def render_champion_ranking(
     *,
     theme: Theme = THEME,
     spec: ExportSpec = PORTRAIT,
-    title: str = "Probabilidad de campeón",
+    title: str = "Championship probability",
     stamp: str | None = None,
 ) -> Figure:
-    """Barras horizontales de P(título), rank 1 arriba, con valor y flecha de delta."""
+    """Horizontal bars of P(title), rank 1 on top, with value and delta arrow."""
     fig, ax = _new_figure(spec, theme)
     _draw_ranking_axes(ax, rows, theme, title=title)
     if stamp is not None:
@@ -228,18 +228,18 @@ def animate_ranking(
     *,
     theme: Theme = THEME,
     spec: ExportSpec = PORTRAIT,
-    title: str = "Probabilidad de campeón",
+    title: str = "Championship probability",
     top_n: int = 10,
     name: str = "ranking",
     fps: int = 2,
     fmt: str = "mp4",
     outdir: Path | str = Path("outputs/videos"),
 ) -> Path:
-    """Anima la evolución del ranking de campeón entre snapshots."""
+    """Animate the champion ranking's evolution across snapshots."""
     from .export import save_animation
 
     if not snapshots:
-        raise ValueError("se requiere al menos un snapshot")
+        raise ValueError("at least one snapshot is required")
     frames = [prepare_champion_ranking(s, top_n=top_n) for s in snapshots]
     fig, ax = _new_figure(spec, theme)
 
@@ -261,7 +261,7 @@ def render_match_bar(
     spec: ExportSpec = LANDSCAPE,
     title: str | None = None,
 ) -> Figure:
-    """Barra 1X2 apilada con el porcentaje rotulado en cada segmento."""
+    """Stacked 1X2 bar with the percentage labeled on each segment."""
     fig, ax = _new_figure(spec, theme)
     color_by_role = {"home": theme.accent, "draw": theme.draw, "away": theme.away}
     left = 0.0
@@ -293,9 +293,9 @@ def render_score_heatmap(
     *,
     theme: Theme = THEME,
     spec: ExportSpec = LANDSCAPE,
-    title: str | None = "Marcadores más probables",
+    title: str | None = "Most likely scorelines",
 ) -> Figure:
-    """Heatmap de la matriz de marcadores con la celda modal resaltada."""
+    """Heatmap of the score matrix with the modal cell highlighted."""
     from matplotlib.colors import LinearSegmentedColormap
     from matplotlib.patches import Rectangle
 
@@ -313,8 +313,8 @@ def render_score_heatmap(
             linewidth=2,
         )
     )
-    ax.set_xlabel("Goles visita", color=theme.text_primary)
-    ax.set_ylabel("Goles local", color=theme.text_primary)
+    ax.set_xlabel("Away goals", color=theme.text_primary)
+    ax.set_ylabel("Home goals", color=theme.text_primary)
     ax.set_xticks(range(data.grid.shape[1]))
     ax.set_yticks(range(data.grid.shape[0]))
     ax.tick_params(colors=theme.text_primary)
@@ -329,16 +329,16 @@ def render_reliability(
     *,
     theme: Theme = THEME,
     spec: ExportSpec = LANDSCAPE,
-    title: str | None = "Calibración (fiabilidad)",
+    title: str | None = "Calibration (reliability)",
 ) -> Figure:
-    """Curva de fiabilidad: puntos predicho-vs-observado sobre la diagonal ideal."""
+    """Reliability curve: predicted-vs-observed points against the ideal diagonal."""
     fig, ax = _new_figure(spec, theme)
     ax.plot([0, 1], [0, 1], linestyle="--", color=theme.text_muted)
     ax.scatter(data.pred, data.observed, color=theme.accent)
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
-    ax.set_xlabel("Probabilidad predicha", color=theme.text_primary)
-    ax.set_ylabel("Frecuencia observada", color=theme.text_primary)
+    ax.set_xlabel("Predicted probability", color=theme.text_primary)
+    ax.set_ylabel("Observed frequency", color=theme.text_primary)
     ax.tick_params(colors=theme.text_primary)
     if title is not None:
         ax.set_title(title, color=theme.text_primary, fontsize=theme.title_size, pad=16)
@@ -348,7 +348,7 @@ def render_reliability(
 
 @dataclass(frozen=True)
 class GroupRow:
-    """Un equipo de un grupo con su probabilidad de avanzar."""
+    """A team in a group with its probability of advancing."""
 
     team: str
     p_advance: float
@@ -360,16 +360,16 @@ def prepare_group_table(
     *,
     advance_key: str = "advance",
 ) -> dict[str, list[GroupRow]]:
-    """Por grupo, equipos ordenados por P(avance) desc; falla si falta un equipo."""
+    """Per group, teams sorted by P(advance) desc; fails if a team is missing."""
     if not groups:
-        raise ValueError("groups vacío")
+        raise ValueError("groups is empty")
     table: dict[str, list[GroupRow]] = {}
     for letter, teams in groups.items():
         rows: list[GroupRow] = []
         for team in teams:
             probs = probabilities.get(team)
             if probs is None or advance_key not in probs:
-                raise ValueError(f"falta P({advance_key}) para {team!r}")
+                raise ValueError(f"missing P({advance_key}) for {team!r}")
             rows.append(GroupRow(team=team, p_advance=probs[advance_key]))
         rows.sort(key=lambda r: (-r.p_advance, r.team))
         table[letter] = rows
@@ -381,14 +381,14 @@ def render_group_table(
     *,
     theme: Theme = THEME,
     spec: ExportSpec = LANDSCAPE,
-    title: str = "Probabilidad de avance",
+    title: str = "Advance probability",
 ) -> Figure:
-    """Cuadrícula de paneles (uno por grupo) con barras de P(avance) por equipo."""
+    """Grid of panels (one per group) with P(advance) bars per team."""
     from matplotlib.figure import Figure
 
     letters = sorted(table)
     cols = min(4, len(letters))
-    n_rows = -(-len(letters) // cols)  # techo
+    n_rows = -(-len(letters) // cols)  # ceiling division
     fig = Figure(
         figsize=(spec.width_px / spec.dpi, spec.height_px / spec.dpi), dpi=spec.dpi
     )
@@ -413,10 +413,10 @@ def render_group_table(
         ax.set_xlim(0, 100)
         ax.set_xticks([])
         ax.set_title(
-            f"Grupo {letter}", color=theme.text_primary, fontsize=theme.label_size
+            f"Group {letter}", color=theme.text_primary, fontsize=theme.label_size
         )
         _strip_chrome(ax)
-    for ax in panels[len(letters) :]:  # ocultar paneles sobrantes
+    for ax in panels[len(letters) :]:  # hide leftover panels
         ax.set_visible(False)
     fig.suptitle(title, color=theme.text_primary, fontsize=theme.title_size)
     _apply_font(fig, theme)
@@ -424,18 +424,18 @@ def render_group_table(
 
 
 _ROUND_LABELS = {
-    "advance": "Avanza",
-    "round_of_16": "Octavos",
-    "quarter_finals": "Cuartos",
-    "semi_finals": "Semis",
+    "advance": "Advances",
+    "round_of_16": "Round of 16",
+    "quarter_finals": "Quarterfinals",
+    "semi_finals": "Semifinals",
     "final": "Final",
-    "champion": "Campeón",
+    "champion": "Champion",
 }
 
 
 @dataclass(frozen=True)
 class TeamRound:
-    """Probabilidad de un equipo de alcanzar una ronda, con etiqueta legible."""
+    """A team's probability of reaching a round, with a readable label."""
 
     label: str
     prob: float
@@ -444,10 +444,10 @@ class TeamRound:
 def prepare_team_detail(
     probabilities: dict[str, dict[str, float]], team: str
 ) -> list[TeamRound]:
-    """Probabilidades por ronda de un equipo, en orden canónico; falla si no está."""
+    """Per-round probabilities for a team, in canonical order; fails if unknown."""
     probs = probabilities.get(team)
     if probs is None:
-        raise ValueError(f"equipo desconocido: {team!r}")
+        raise ValueError(f"unknown team: {team!r}")
     return [
         TeamRound(label=label, prob=probs[key])
         for key, label in _ROUND_LABELS.items()

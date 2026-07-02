@@ -1,4 +1,4 @@
-"""Tests del RNG sembrado: la reproducibilidad del proyecto descansa aquí."""
+"""Tests for the seeded RNG: the project's reproducibility rests on this."""
 
 from __future__ import annotations
 
@@ -20,25 +20,25 @@ def test_different_seeds_differ() -> None:
 
 
 def test_default_seed_matches_config() -> None:
-    # El default del RNG debe coincidir con project.seed de config.yaml.
+    # RNG default must match project.seed in config.yaml.
     assert DEFAULT_SEED == 42
 
 
 def test_spawn_streams_are_reproducible_and_independent() -> None:
     first = [g.random(3) for g in spawn_rngs(42, 4)]
     second = [g.random(3) for g in spawn_rngs(42, 4)]
-    # Reproducible: misma (seed, n) -> mismos streams.
+    # Reproducible: same (seed, n) -> same streams.
     for x, y in zip(first, second, strict=True):
         assert np.array_equal(x, y)
-    # Independiente: los 4 streams no son idénticos entre sí.
+    # Independent: the 4 streams aren't identical to each other.
     assert not np.array_equal(first[0], first[1])
 
 
 def test_spawn_negative_raises() -> None:
-    # Edge case: n negativo es un error de programación, no un silencio.
+    # Edge case: negative n is a programming error, not something to swallow.
     try:
         spawn_rngs(42, -1)
     except ValueError:
         pass
     else:
-        raise AssertionError("spawn_rngs(-1) debería lanzar ValueError")
+        raise AssertionError("spawn_rngs(-1) should raise ValueError")

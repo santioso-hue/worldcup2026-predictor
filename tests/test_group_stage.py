@@ -1,4 +1,4 @@
-"""Tests de standings de grupo (Art. 13: H2H ANTES de GD) y ranking de terceros."""
+"""Tests for group standings (Art. 13: H2H before GD) and third-place ranking."""
 
 from __future__ import annotations
 
@@ -33,9 +33,9 @@ def test_orders_by_points_when_no_ties() -> None:
 
 
 def test_head_to_head_beats_overall_goal_difference() -> None:
-    # A y B empatan a 6 pts; A tiene mejor GD global (+5 vs +3) PERO B le ganó a A.
-    # Art. 13 Step 1 (H2H) va ANTES que GD -> B por encima de A.
-    # C y D empatan a 3; D le ganó a C aunque C tiene mejor GD -> D por encima de C.
+    # A and B tie on 6 pts; A has better overall GD (+5 vs +3) BUT B beat A H2H.
+    # Art. 13 Step 1 (H2H) comes before GD -> B ranks above A.
+    # C and D tie on 3; D beat C even though C has better GD -> D ranks above C.
     matches = [
         PlayedMatch("A", "C", 3, 0),
         PlayedMatch("A", "D", 3, 0),
@@ -48,7 +48,7 @@ def test_head_to_head_beats_overall_goal_difference() -> None:
 
 
 def test_falls_back_to_overall_gd_when_head_to_head_is_drawn() -> None:
-    # A y B empatan a 4 pts y empataron su H2H (1-1) -> H2H no decide -> GD global: A>B.
+    # A and B tie on 4 pts, drew H2H (1-1) -> H2H doesn't decide -> overall GD: A>B.
     matches = [
         PlayedMatch("A", "B", 1, 1),
         PlayedMatch("A", "C", 3, 0),
@@ -58,11 +58,11 @@ def test_falls_back_to_overall_gd_when_head_to_head_is_drawn() -> None:
         PlayedMatch("D", "C", 1, 0),
     ]
     order = _order(matches, list("ABCD"), EQUAL_ELO)
-    assert order.index("A") < order.index("B")  # A antes que B por GD global
+    assert order.index("A") < order.index("B")  # A before B on overall GD
 
 
 def test_elo_breaks_total_ties() -> None:
-    # A y B idénticos en puntos, H2H (0-0), GD y GF globales -> decide el Elo.
+    # A and B are identical on points, H2H (0-0), overall GD and GF -> Elo decides.
     matches = [
         PlayedMatch("A", "B", 0, 0),
         PlayedMatch("A", "C", 1, 0),
@@ -73,7 +73,7 @@ def test_elo_breaks_total_ties() -> None:
     ]
     elo = {"A": 1600.0, "B": 1500.0, "C": 1500.0, "D": 1500.0}
     order = _order(matches, list("ABCD"), elo)
-    assert order.index("A") < order.index("B")  # A antes que B por mayor Elo
+    assert order.index("A") < order.index("B")  # A before B on higher Elo
 
 
 def test_standings_returns_overall_records() -> None:
@@ -90,7 +90,7 @@ def test_standings_returns_overall_records() -> None:
 
 
 def test_standings_fails_loud_when_elo_missing_a_team() -> None:
-    # Sin empates (resultado claro): aun así falla de entrada, no según el marcador.
+    # No ties (clear result): it still fails up front, regardless of the scoreline.
     matches = [
         PlayedMatch("A", "B", 3, 0),
         PlayedMatch("A", "C", 3, 0),

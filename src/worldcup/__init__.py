@@ -1,3 +1,3 @@
-"""worldcup2026-predictor: predictor live-updating del Mundial FIFA 2026."""
+"""worldcup2026-predictor: live-updating predictor for the FIFA 2026 World Cup."""
 
 __version__ = "0.1.0"

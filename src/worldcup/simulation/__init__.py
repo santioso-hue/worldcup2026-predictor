@@ -1,1 +1,1 @@
-"""Simulación: estado real del torneo + Monte Carlo condicional del bracket."""
+"""Simulation: real tournament state + conditional Monte Carlo of the bracket."""

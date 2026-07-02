@@ -1,1 +1,1 @@
-"""Visualización: theme (marca única), charts, bracket y export PNG/MP4."""
+"""Visualization: unified theme, charts, bracket, and PNG/MP4 export."""

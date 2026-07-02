@@ -1,1 +1,1 @@
-"""Evaluación: backtest (métricas 1X2) y calibración (reliability/ECE + Platt)."""
+"""Evaluation: backtest (1X2 metrics) and calibration (reliability/ECE + Platt)."""

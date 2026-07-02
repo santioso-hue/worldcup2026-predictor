@@ -1,4 +1,4 @@
-"""Test de export: save_figure escribe un PNG del tamaño en píxeles del spec."""
+"""Export tests: save_figure writes a PNG at the spec's pixel size."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ def test_save_figure_writes_png_of_spec_size(tmp_path: Path) -> None:
 
 
 def test_animate_ranking_writes_gif(tmp_path: Path) -> None:
-    pytest.importorskip("PIL")  # PillowWriter -> GIF, sin ffmpeg
+    pytest.importorskip("PIL")  # PillowWriter -> GIF, no ffmpeg needed
     path = animate_ranking(
         _SNAPSHOTS, fmt="gif", outdir=tmp_path, name="ranking", top_n=3
     )
@@ -44,7 +44,7 @@ def test_animate_ranking_writes_mp4_if_ffmpeg(tmp_path: Path) -> None:
     from matplotlib.animation import FFMpegWriter
 
     if not FFMpegWriter.isAvailable():
-        pytest.skip("ffmpeg no disponible")
+        pytest.skip("ffmpeg not available")
     path = animate_ranking(
         _SNAPSHOTS, fmt="mp4", outdir=tmp_path, name="ranking", top_n=3
     )

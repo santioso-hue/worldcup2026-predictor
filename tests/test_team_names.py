@@ -1,4 +1,4 @@
-"""Tests de canonicalización de nombres de selección (football-data -> martj42)."""
+"""Tests for team-name canonicalization (football-data -> martj42)."""
 
 from __future__ import annotations
 
@@ -16,20 +16,20 @@ def test_known_aliases_map_to_martj42_names() -> None:
 
 
 def test_unaliased_name_is_identity() -> None:
-    # La mayoría de selecciones coinciden: sin alias, se devuelve igual.
+    # Most teams already match: no alias means the name passes through unchanged.
     assert canonical_footballdata_team("Colombia") == "Colombia"
     assert canonical_footballdata_team("Brazil") == "Brazil"
 
 
 def test_congo_is_not_collapsed_into_dr_congo() -> None:
-    # "Congo" (Rep. del Congo) es una selección distinta de "DR Congo": no se fusiona.
+    # "Congo" (Republic of Congo) is a different team from "DR Congo": don't merge them.
     assert canonical_footballdata_team("Congo") == "Congo"
 
 
 def test_openfootball_aliases_map_to_martj42_names() -> None:
-    # openfootball escribe 2 de las 48 distinto a martj42; sin esto caerían a Elo 1500
-    # y 'USA' (anfitrión) perdería el bono de sede.
+    # openfootball spells 2 of the 48 teams differently from martj42; without this
+    # they'd fall back to Elo 1500 and 'USA' (the host) would lose its host bonus.
     assert canonical_openfootball_team("USA") == "United States"
     bih = canonical_openfootball_team("Bosnia & Herzegovina")
     assert bih == "Bosnia and Herzegovina"
-    assert canonical_openfootball_team("Colombia") == "Colombia"  # identidad
+    assert canonical_openfootball_team("Colombia") == "Colombia"  # identity

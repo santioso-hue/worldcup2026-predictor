@@ -1,13 +1,13 @@
-"""Descarga + **snapshotting** con timestamp (registro reproducible del estado).
+"""Download + timestamped **snapshotting** (reproducible record of model state).
 
-Cada corrida guarda un snapshot inmutable ``results_YYYYMMDDtHHMM.parquet`` y actualiza
-un puntero ``latest.txt``. Nunca se machaca un snapshot previo: son el registro de "qué
-sabía el modelo y cuándo". Fijar un snapshot ``--snapshot <ts>``
-reproduce exactamente unas figuras.
+Each run writes an immutable ``results_YYYYMMDDtHHMM.parquet`` snapshot and updates a
+``latest.txt`` pointer. A previous snapshot is never overwritten: they're the record of
+"what the model knew and when." Pinning a snapshot with ``--snapshot <ts>`` reproduces a
+given set of figures exactly.
 
-La conversión ``NormalizedMatch`` <-> registros (``list[dict]``) es **pura** (stdlib,
-ISO-8601 para fechas y ``status`` como string) y se testea sin pandas. La serialización
-a parquet importa ``pandas``/``pyarrow`` de forma perezosa, aislando la dependencia.
+The ``NormalizedMatch`` <-> record (``list[dict]``) conversion is **pure** (stdlib,
+ISO-8601 dates, ``status`` as a string) and is tested without pandas. Parquet
+serialization imports ``pandas``/``pyarrow`` lazily, isolating the dependency.
 """
 
 from __future__ import annotations
@@ -33,13 +33,13 @@ TIMESTAMP_FORMAT = "%Y%m%dt%H%M"
 
 
 def make_timestamp(moment: datetime | None = None) -> str:
-    """Formatea un ``datetime`` como ``YYYYMMDDtHHMM`` (UTC).
+    """Format a ``datetime`` as ``YYYYMMDDtHHMM`` (UTC).
 
     Parameters
     ----------
     moment:
-        Instante a formatear. Si es ``None`` se usa ``datetime.now(UTC)``. Para salidas
-        deterministas (tests, grabación), pasa un ``moment`` explícito.
+        Instant to format. Defaults to ``datetime.now(UTC)`` when ``None``. Pass an
+        explicit ``moment`` for deterministic output (tests, recordings).
     """
     if moment is None:
         moment = datetime.now(timezone.utc)
@@ -47,7 +47,7 @@ def make_timestamp(moment: datetime | None = None) -> str:
 
 
 def match_to_record(match: NormalizedMatch) -> dict[str, Any]:
-    """Serializa un partido a un registro plano JSON-compatible (puro, sin pandas)."""
+    """Serialize a match to a flat, JSON-compatible record (pure, no pandas)."""
     return {
         "match_id": match.match_id,
         "source": match.source,
@@ -71,12 +71,12 @@ def match_to_record(match: NormalizedMatch) -> dict[str, Any]:
 
 
 def _opt_int(value: Any) -> int | None:
-    """Coerce a ``int`` o ``None``, tolerando ``NaN``/``<NA>``/``float`` de parquet."""
+    """Coerce to ``int`` or ``None``, tolerating parquet ``NaN``/``<NA>``/``float``."""
     if value is None:
         return None
-    # NaN != NaN; también cubre pandas.NA cuyo bool es ambiguo, evitado por el try.
+    # NaN != NaN; also catches pandas.NA, whose bool is ambiguous, via the try.
     try:
-        if value != value:  # noqa: PLR0124 - chequeo de NaN
+        if value != value:  # noqa: PLR0124 - NaN check
             return None
     except (TypeError, ValueError):
         return None
@@ -84,17 +84,16 @@ def _opt_int(value: Any) -> int | None:
 
 
 def _opt_str(value: Any) -> str | None:
-    """Coerce a ``str`` o ``None``, tolerando ``NaN``/``<NA>`` de parquet.
+    """Coerce to ``str`` or ``None``, tolerating parquet's ``NaN``/``<NA>``.
 
-    pandas rellena las celdas ausentes de una columna de texto con ``NaN`` (float), no
-    con ``None``. Sin la guarda, un ``venue`` ausente volvería como la cadena ``"nan"``
-    tras un round-trip (``str(nan)``), rompiendo la inmutabilidad del snapshot y el
-    determinismo.
+    pandas fills missing cells in a text column with ``NaN`` (float), not ``None``.
+    Without this guard, a missing ``venue`` would round-trip back as the string
+    ``"nan"`` (``str(nan)``), breaking snapshot immutability and determinism.
     """
     if value is None:
         return None
     try:
-        if value != value:  # noqa: PLR0124 - chequeo de NaN
+        if value != value:  # noqa: PLR0124 - NaN check
             return None
     except (TypeError, ValueError):
         return None
@@ -102,7 +101,7 @@ def _opt_str(value: Any) -> str | None:
 
 
 def record_to_match(record: dict[str, Any]) -> NormalizedMatch:
-    """Reconstruye un :class:`NormalizedMatch` desde un registro plano (puro)."""
+    """Rebuild a :class:`NormalizedMatch` from a flat record (pure)."""
     fetched = _opt_str(record.get("fetched_at"))
     return NormalizedMatch(
         match_id=str(record["match_id"]),
@@ -127,7 +126,7 @@ def record_to_match(record: dict[str, Any]) -> NormalizedMatch:
 
 
 def snapshot_path(raw_dir: Path | str, filename_pattern: str, ts: str) -> Path:
-    """Ruta del snapshot para un timestamp ``ts``."""
+    """Snapshot path for a given timestamp ``ts``."""
     return Path(raw_dir) / filename_pattern.format(ts=ts)
 
 
@@ -140,34 +139,34 @@ def save_snapshot(
     latest_pointer: str = "latest.txt",
     overwrite: bool = False,
 ) -> Path:
-    """Escribe un snapshot parquet inmutable y actualiza el puntero ``latest``.
+    """Write an immutable parquet snapshot and update the ``latest`` pointer.
 
     Parameters
     ----------
     matches:
-        Partidos normalizados a guardar.
+        Normalized matches to save.
     ts:
-        Timestamp ``YYYYMMDDtHHMM`` (ver :func:`make_timestamp`).
+        Timestamp ``YYYYMMDDtHHMM`` (see :func:`make_timestamp`).
     raw_dir:
-        Directorio ``data/raw`` (se crea si no existe).
+        ``data/raw`` directory (created if missing).
     overwrite:
-        Por defecto ``False``: si el snapshot ya existe se lanza ``FileExistsError``
-        (los snapshots son inmutables). Usa un ``ts`` nuevo en su lugar.
+        Defaults to ``False``: raises ``FileExistsError`` if the snapshot already
+        exists (snapshots are immutable). Use a new ``ts`` instead.
 
     Returns
     -------
     pathlib.Path
-        Ruta del parquet escrito.
+        Path of the parquet file written.
     """
-    import pandas as pd  # import perezoso
+    import pandas as pd  # lazy import
 
     raw_dir = Path(raw_dir)
     raw_dir.mkdir(parents=True, exist_ok=True)
     path = snapshot_path(raw_dir, filename_pattern, ts)
     if path.exists() and not overwrite:
         raise FileExistsError(
-            f"El snapshot {path} ya existe; los snapshots son inmutables. "
-            "Usa un timestamp nuevo o overwrite=True."
+            f"Snapshot {path} already exists; snapshots are immutable. "
+            "Use a new timestamp or overwrite=True."
         )
     records = [match_to_record(m) for m in matches]
     pd.DataFrame(records).to_parquet(path, index=False)
@@ -178,7 +177,7 @@ def save_snapshot(
 def latest_timestamp(
     raw_dir: Path | str, *, latest_pointer: str = "latest.txt"
 ) -> str | None:
-    """Lee el timestamp del último snapshot, o ``None`` si no hay puntero."""
+    """Read the timestamp of the latest snapshot, or ``None`` if there's no pointer."""
     pointer = Path(raw_dir) / latest_pointer
     if not pointer.exists():
         return None
@@ -191,20 +190,20 @@ def load_snapshot(
     *,
     filename_pattern: str = "results_{ts}.parquet",
 ) -> list[NormalizedMatch]:
-    """Carga un snapshot parquet y lo reconstruye a ``NormalizedMatch``.
+    """Load a parquet snapshot and rebuild it into ``NormalizedMatch`` objects.
 
     Raises
     ------
     FileNotFoundError
-        Si no existe el snapshot para ese ``ts``.
+        If no snapshot exists for that ``ts``.
     """
-    import pandas as pd  # import perezoso
+    import pandas as pd  # lazy import
 
     path = snapshot_path(raw_dir, filename_pattern, ts)
     if not path.exists():
-        raise FileNotFoundError(f"No existe el snapshot: {path}")
+        raise FileNotFoundError(f"Snapshot not found: {path}")
     df = pd.read_parquet(path)
-    # to_dict tipa las claves como Hashable; aquí son nombres de columna (str).
+    # to_dict types keys as Hashable; here they're column names (str).
     records = cast("list[dict[str, Any]]", df.to_dict(orient="records"))
     return [record_to_match(r) for r in records]
 
@@ -215,7 +214,7 @@ def load_latest_snapshot(
     filename_pattern: str = "results_{ts}.parquet",
     latest_pointer: str = "latest.txt",
 ) -> list[NormalizedMatch] | None:
-    """Carga el snapshot apuntado por ``latest``; ``None`` si no hay ninguno."""
+    """Load the snapshot pointed to by ``latest``; ``None`` if there isn't one."""
     ts = latest_timestamp(raw_dir, latest_pointer=latest_pointer)
     if ts is None:
         return None
@@ -223,7 +222,7 @@ def load_latest_snapshot(
 
 
 def fetch_openfootball(url: str, *, timeout: float = 30.0) -> dict:
-    """Descarga el JSON de fixtures de openfootball (I/O; ``requests`` perezoso)."""
+    """Download the openfootball fixtures JSON (I/O; ``requests`` imported lazily)."""
     import requests
 
     resp = requests.get(url, timeout=timeout)

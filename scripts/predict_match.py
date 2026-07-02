@@ -1,9 +1,10 @@
-"""CLI de predicción puntual: 1X2 de un partido desde los ratings Elo del histórico.
+"""One-off CLI: 1X2 prediction for a single match from historical Elo ratings.
 
-Los nombres deben coincidir con el histórico martj42 (p. ej. "United States", no "USA";
-"DR Congo", no "Congo DR"). Un nombre desconocido cae al rating por defecto y avisa.
+Team names must match the martj42 historical dataset (e.g. "United States", not
+"USA"; "DR Congo", not "Congo DR"). An unknown name falls back to the default
+rating and prints a warning.
 
-Ejemplos:
+Examples:
     python scripts/predict_match.py "Brazil" "France"
     python scripts/predict_match.py "United States" "Mexico" --host "United States"
 """
@@ -27,28 +28,28 @@ def main(
 ) -> None:
     cfg = load_config(config)
     dest = cfg.paths.data_raw / "results.csv"
-    fetch_martj42(cfg.data.historical.results_url, dest)  # idempotente
+    fetch_martj42(cfg.data.historical.results_url, dest)  # idempotent
     history = parse_results_csv(dest.read_text())
     known = {m.home_team for m in history} | {m.away_team for m in history}
-    for label, team in (("local", home), ("visitante", away)):
+    for label, team in (("home", home), ("away", away)):
         if team not in known:
             typer.secho(
-                f"aviso: '{team}' ({label}) no está en el histórico; se usa el rating "
-                f"por defecto ({cfg.elo.initial_rating:.0f}). Revisa el nombre "
-                "(p. ej. 'United States', no 'USA').",
+                f"warning: '{team}' ({label}) not in the historical data; using "
+                f"the default rating ({cfg.elo.initial_rating:.0f}). Check the "
+                "name (e.g. 'United States', not 'USA').",
                 err=True,
                 fg=typer.colors.YELLOW,
             )
     if host is not None and host not in (home, away):
         typer.secho(
-            f"aviso: host '{host}' no coincide con ningún equipo; sin ventaja de sede.",
+            f"warning: host '{host}' doesn't match either team; no host advantage.",
             err=True,
             fg=typer.colors.YELLOW,
         )
     outcome = predict_match(home, away, history, cfg, host=host)
     typer.echo(
         f"{home} {outcome.home_win:.1%}  ·  "
-        f"empate {outcome.draw:.1%}  ·  "
+        f"draw {outcome.draw:.1%}  ·  "
         f"{away} {outcome.away_win:.1%}"
     )
 

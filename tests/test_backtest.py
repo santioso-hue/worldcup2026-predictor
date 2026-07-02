@@ -1,4 +1,4 @@
-"""Tests del backtest walk-forward y las métricas 1X2."""
+"""Tests for the walk-forward backtest and the 1X2 metrics."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ def test_perfect_predictions_score_zero() -> None:
 
 
 def test_rps_respects_outcome_ordering() -> None:
-    # actual=local: predecir todo a visita penaliza más que predecir todo a empate.
+    # actual=home: predicting all-away is penalized more than predicting all-draw.
     predicted_away = rps([Prediction((0.0, 0.0, 1.0), 0)])
     predicted_draw = rps([Prediction((0.0, 1.0, 0.0), 0)])
     assert predicted_away > predicted_draw
@@ -52,7 +52,7 @@ def test_log_loss_matches_hand_computation() -> None:
 
 def test_accuracy_uses_argmax() -> None:
     preds = [Prediction((0.6, 0.3, 0.1), 0), Prediction((0.2, 0.3, 0.5), 1)]
-    assert accuracy(preds) == 0.5  # 1ª acierta (argmax 0); 2ª falla (argmax 2 != 1)
+    assert accuracy(preds) == 0.5  # 1st correct (argmax 0); 2nd wrong (argmax 2 != 1)
 
 
 def _hm(
@@ -88,7 +88,7 @@ def test_backtest_does_not_peek_at_the_future() -> None:
         burn_in_matches=1,
         history_window_days=3650,
     )
-    # añadir un partido POSTERIOR no cambia las predicciones de los previos.
+    # adding a LATER match doesn't change predictions for the earlier ones.
     assert extended.predictions[: len(base.predictions)] == base.predictions
 
 
@@ -111,17 +111,13 @@ def test_metrics_reject_empty_predictions() -> None:
 
 
 def test_backtest_excludes_same_day_matches_from_prior() -> None:
-    # Dos partidos el MISMO día no deben verse entre sí: la ventana es [., M.date) por
-    # fecha, así que reordenarlos en la entrada no cambia ninguna predicción.
+    # Two matches on the SAME day must not see each other: the window is [., M.date)
+    # by date, so reordering them in the input doesn't change any prediction.
     earlier = _hm(date(2020, 1, 1), 1, 0, "A", "B")
     m_ab = _hm(date(2020, 6, 1), 1, 0, "A", "B")
     m_cd = _hm(date(2020, 6, 1), 2, 0, "C", "D")
     kw = dict(burn_in_matches=0, history_window_days=3650)
     ab_first = backtest([earlier, m_ab, m_cd], MODEL, CFG.elo, **kw)
     cd_first = backtest([earlier, m_cd, m_ab], MODEL, CFG.elo, **kw)
-    assert (
-        ab_first.predictions[1] == cd_first.predictions[2]
-    )  # A-B: mismo prior en ambos
-    assert (
-        ab_first.predictions[2] == cd_first.predictions[1]
-    )  # C-D: mismo prior en ambos
+    assert ab_first.predictions[1] == cd_first.predictions[2]  # A-B: same prior in both
+    assert ab_first.predictions[2] == cd_first.predictions[1]  # C-D: same prior in both

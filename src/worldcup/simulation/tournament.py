@@ -1,18 +1,18 @@
-"""Monte Carlo condicional del torneo: simula solo lo pendiente y agrega frecuencias.
+"""Conditional Monte Carlo for the tournament: simulate what's pending, tally results.
 
-Cada corrida: simula los partidos de grupo pendientes (usando los resultados
-bloqueados donde existan), calcula las posiciones (Art. 13), determina
-ganadores/subcampeones y los 8 mejores terceros (Annex C), arma el bracket y simula
-la eliminatoria (condicionada a lo bloqueado). Agrega sobre ``runs`` corridas ->
-P(avanzar / R16 / QF / SF / final / campeón) por selección. Determinista dado el
-snapshot (locks) + la semilla.
+Each run: simulate the pending group matches (using locked results where they
+exist), compute standings (Art. 13), determine winners/runners-up and the 8
+best third-placed teams (Annex C), build the bracket, and simulate the
+knockout stage (conditioned on locks). Aggregating over ``runs`` gives
+P(advance / R16 / QF / SF / final / champion) per team. Deterministic given
+the snapshot (locks) + seed.
 
-*Bono de sede:* las anfitrionas (``config.simulation.hosts``) reciben
-``elo.host_advantage`` en sus partidos simulados, vía ``host_advantage`` (mapa
-``team -> bono``); en un cruce el bono es neto (local anfitrión menos visitante
-anfitrión), así dos anfitrionas entre sí juegan neutral.
-*Rendimiento:* sin caché de matrices (correctness-first); para 50k corridas conviene
-cachear ``score_matrix`` por emparejamiento (futuro).
+*Host bonus:* hosts (``config.simulation.hosts``) get ``elo.host_advantage``
+in their simulated matches, via ``host_advantage`` (``team -> bonus`` map); in
+a given matchup the bonus is net (home host minus away host), so two hosts
+playing each other is neutral.
+*Performance:* no matrix caching (correctness first); for 50k runs it'd be
+worth caching ``score_matrix`` per matchup (future work).
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ from .bracket import KNOCKOUT_BRACKET, assign_best_thirds
 from .group_stage import PlayedMatch, TeamStanding, rank_thirds, standings
 from .match import simulate_match
 
-# Rondas en orden de profundidad. "advance" = clasificar al Round of 32.
+# Rounds in order of depth. "advance" = qualify for the Round of 32.
 ROUNDS = (
     "advance",
     "round_of_16",
@@ -38,33 +38,34 @@ ROUNDS = (
 )
 _ROUND_INDEX = {r: i for i, r in enumerate(ROUNDS)}
 
-# El bracket y Annex C son específicos del WC2026: 12 grupos A-L de 4 equipos.
+# The bracket and Annex C are WC2026-specific: 12 groups A-L of 4 teams each.
 _GROUP_KEYS = frozenset("ABCDEFGHIJKL")
 
 
 def _net_host_advantage(
     home: str, away: str, host_advantage: dict[str, float]
 ) -> float:
-    """Bono de sede neto: +bono si el local es anfitrión, -bono si lo es el visitante.
+    """Net host bonus: +bonus if home is a host, -bonus if away is a host.
 
-    Dos anfitrionas entre sí (o ninguna) -> 0. La etiqueta home/away del bracket no
-    refleja la sede real (todo se juega en US/MX/CA), así que el bono va al anfitrión.
+    Two hosts facing each other (or neither) -> 0. The bracket's home/away
+    label doesn't reflect the real venue (everything is played in US/MX/CA),
+    so the bonus goes to whichever side is a host.
     """
     return host_advantage.get(home, 0.0) - host_advantage.get(away, 0.0)
 
 
 def _validate_groups(groups: dict[str, list[str]]) -> None:
-    """Falla ruidosamente si ``groups`` no es la estructura WC2026 (12 grupos A-L de 4).
+    """Fail loudly if ``groups`` isn't the WC2026 structure (12 groups A-L of 4).
 
-    Sin esto, una entrada malformada (un n.º de grupos != 12, o etiquetas de grupo
-    inesperadas) reventaría con un ``KeyError`` opaco en mitad de la resolución del
-    bracket en vez de dar un error claro.
+    Without this, a malformed input (wrong group count, unexpected group
+    labels) would blow up with an opaque ``KeyError`` mid-bracket instead of
+    a clear error up front.
     """
     if set(groups) != _GROUP_KEYS:
-        raise ValueError(f"se esperan 12 grupos A-L; se recibieron {sorted(groups)}")
+        raise ValueError(f"expected 12 groups A-L; got {sorted(groups)}")
     for group, teams in groups.items():
         if len(teams) != 4:
-            raise ValueError(f"el grupo {group} tiene {len(teams)} equipos != 4")
+            raise ValueError(f"group {group} has {len(teams)} teams != 4")
 
 
 def _simulate_group(
@@ -77,7 +78,7 @@ def _simulate_group(
     denom: float,
     host_advantage: dict[str, float],
 ) -> list[TeamStanding]:
-    """Simula (o usa el lock de) los 6 partidos del grupo; devuelve las posiciones."""
+    """Simulate (or use the lock for) the group's 6 matches; return standings."""
     matches: list[PlayedMatch] = []
     for home, away in combinations(teams, 2):
         locked = locked_group.get(frozenset((home, away)))
@@ -115,7 +116,7 @@ def _simulate_once(
     denom: float,
     host_advantage: dict[str, float],
 ) -> dict[str, str]:
-    """Una realización del torneo -> ``{team: ronda más profunda alcanzada}``."""
+    """One tournament realization -> ``{team: deepest round reached}``."""
     group_standings = {
         g: _simulate_group(
             teams, ratings, model, rng, locked_group, et_total, denom, host_advantage
@@ -140,7 +141,7 @@ def _simulate_once(
             return runners[str(ref)]
         if kind == "T":
             return third_of_group[assignment[str(ref)]].team
-        assert isinstance(ref, int)  # los refs "MW"/"ML" son match ids
+        assert isinstance(ref, int)  # "MW"/"ML" refs are match ids
         return match_winner[ref] if kind == "MW" else match_loser[ref]
 
     reached: dict[str, str] = {}
@@ -199,12 +200,13 @@ def run_tournament(
     locked_knockout: dict[frozenset[str], str] | None = None,
     host_advantage: dict[str, float] | None = None,
 ) -> dict[str, dict[str, float]]:
-    """Corre el Monte Carlo condicional y devuelve ``{team: {ronda: probabilidad}}``.
+    """Run the conditional Monte Carlo and return ``{team: {round: probability}}``.
 
-    ``locked_group`` mapea ``frozenset({home, away}) -> PlayedMatch`` (resultados ya
-    jugados); ``locked_knockout`` mapea ``frozenset({home, away}) -> ganador``. Lo
-    bloqueado no se re-muestrea. ``host_advantage`` mapea ``anfitrión -> bono Elo`` (se
-    aplica neto por cruce; vacío = cancha neutral). Determinista dado ``(locks, seed)``.
+    ``locked_group`` maps ``frozenset({home, away}) -> PlayedMatch`` (results
+    already played); ``locked_knockout`` maps ``frozenset({home, away}) ->
+    winner``. Locked matches are never re-sampled. ``host_advantage`` maps
+    ``host -> Elo bonus`` (applied net per matchup; empty = neutral venue).
+    Deterministic given ``(locks, seed)``.
     """
     _validate_groups(groups)
     locked_group = locked_group or {}
@@ -228,7 +230,7 @@ def run_tournament(
         for team, deepest in reached.items():
             for i in range(
                 _ROUND_INDEX[deepest] + 1
-            ):  # alcanzó todas hasta la más profunda
+            ):  # reached every round up to the deepest one
                 counts[team][ROUNDS[i]] += 1
 
     return {team: {rnd: counts[team][rnd] / runs for rnd in ROUNDS} for team in ratings}

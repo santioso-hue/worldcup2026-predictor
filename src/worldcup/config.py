@@ -1,8 +1,8 @@
-"""Carga y valida ``config.yaml`` con pydantic.
+"""Load and validate ``config.yaml`` with pydantic.
 
-Es la ÚNICA fuente de hiperparámetros, rutas, semilla y modo. Los
-modelos usan ``extra="forbid"`` para que un typo en el YAML falle ruidosamente en vez
-de pasar desapercibido, y ``frozen=True`` para que la config sea inmutable en runtime.
+This is the ONLY source of hyperparameters, paths, seed, and mode. Models
+use ``extra="forbid"`` so a YAML typo fails loudly instead of silently, and
+``frozen=True`` so the config is immutable at runtime.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class TournamentMode(str, Enum):
-    """Modo de torneo."""
+    """Tournament mode."""
 
     live = "live"
     pre_tournament = "pre_tournament"
@@ -71,7 +71,7 @@ class DataConfig(_Base):
 
 
 class GoalMarginConfig(_Base):
-    """Parámetros del multiplicador de margen de gol (eloratings.net)."""
+    """Goal-margin multiplier parameters (eloratings.net)."""
 
     two_goal: float = Field(gt=0)
     offset: float = Field(gt=0)
@@ -94,7 +94,7 @@ class EloConfig(_Base):
     @classmethod
     def _must_have_default(cls, v: dict[str, float]) -> dict[str, float]:
         if "default" not in v:
-            raise ValueError("elo.k_factors debe incluir la clave 'default'")
+            raise ValueError("elo.k_factors must include the 'default' key")
         return v
 
 
@@ -106,7 +106,7 @@ class DixonColesConfig(_Base):
 class SimulationConfig(_Base):
     runs: int = Field(gt=0)
     extra_time_total_goals: float = Field(ge=0)
-    hosts: list[str] = Field(default_factory=list)  # sedes -> bono elo.host_advantage
+    hosts: list[str] = Field(default_factory=list)  # gets elo.host_advantage bonus
 
 
 class EvaluationConfig(_Base):
@@ -115,7 +115,7 @@ class EvaluationConfig(_Base):
 
 
 class Config(_Base):
-    """Configuración raíz validada del proyecto."""
+    """Validated root config for the project."""
 
     project: ProjectConfig
     paths: PathsConfig
@@ -130,27 +130,29 @@ DEFAULT_CONFIG_PATH = Path("config/config.yaml")
 
 
 def load_config(path: Path | str = DEFAULT_CONFIG_PATH) -> Config:
-    """Lee y valida ``config.yaml``.
+    """Read and validate ``config.yaml``.
 
     Parameters
     ----------
     path:
-        Ruta al YAML. Por defecto ``config/config.yaml`` relativo al cwd.
+        Path to the YAML file. Defaults to ``config/config.yaml`` relative
+        to the cwd.
 
     Returns
     -------
     Config
-        Configuración validada e inmutable.
+        Validated, immutable config.
 
     Raises
     ------
     FileNotFoundError
-        Si el archivo no existe.
+        If the file doesn't exist.
     pydantic.ValidationError
-        Si falta un campo, sobra una clave o un valor viola sus restricciones.
+        If a field is missing, an extra key is present, or a value
+        violates its constraints.
     """
     path = Path(path)
     if not path.exists():
-        raise FileNotFoundError(f"No existe config: {path}")
+        raise FileNotFoundError(f"Config file not found: {path}")
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     return Config.model_validate(raw)

@@ -1,20 +1,20 @@
 name: refresh
 
-# Refresco automático del pipeline (recomendado sobre `--watch`, que depende de
-# un proceso vivo). Cada corrida es un único CronTrigger: fetch live -> reconcile -> simula
-# -> figuras + probabilities JSON, publicados como artefactos (las salidas son regenerables
-# y NO se versionan: ver .gitignore).
+# Automatic pipeline refresh (preferred over `--watch`, which needs a long-running
+# process). Each run is a single CronTrigger: fetch live -> reconcile -> simulate
+# -> figures + probabilities JSON, published as artifacts (outputs are regenerable
+# and not version-controlled: see .gitignore).
 
 on:
   workflow_dispatch: {}
   schedule:
-    # Cada 30 min. Solo tiene sentido durante el torneo (jun–jul 2026); fuera de esa ventana
-    # deshabilita el workflow o haz el cron más espaciado para no gastar el presupuesto de la
-    # API. El proveedor pide polling por ventanas; afina el cron en días de
-    # partido (o usa un webhook del proveedor para refresco instantáneo).
+    # Every 30 min. Only makes sense during the tournament (Jun-Jul 2026); outside
+    # that window, disable the workflow or space the cron out to save API budget.
+    # The provider only supports polling, not push; tighten the cron on match days
+    # (or switch to the provider's webhook for instant refresh if they add one).
     - cron: "*/30 * * * *"
 
-# No solapar corridas: si una sigue viva cuando dispara la siguiente, esta espera.
+# Don't overlap runs: if one is still going when the next triggers, it waits.
 concurrency:
   group: refresh
   cancel-in-progress: false
@@ -34,8 +34,8 @@ jobs:
       - name: Install
         run: pip install -e .
       - name: Run pipeline (live)
-        # El proveedor primario es football-data.org (config.data.live.provider). Define
-        # el secret FOOTBALL_DATA_TOKEN en Settings > Secrets del repo.
+        # Primary provider is football-data.org (config.data.live.provider). Set the
+        # FOOTBALL_DATA_TOKEN secret in the repo's Settings > Secrets.
         env:
           FOOTBALL_DATA_TOKEN: ${{ secrets.FOOTBALL_DATA_TOKEN }}
         run: python scripts/run_pipeline.py --mode live

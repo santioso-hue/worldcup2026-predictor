@@ -1,20 +1,19 @@
-"""Canonicalización de nombres de selección entre fuentes de datos.
+"""Canonicalize team names across data sources.
 
-El Elo se entrena sobre martj42 (~49k partidos); ese es el nombre **canónico** del
-proyecto. Los proveedores live usan variantes ("Congo DR" vs "DR Congo", "Czechia" vs
-"Czech Republic"): si no se traducen, el equipo no encuentra su histórico y cae al
-rating por defecto (``initial_rating`` = 1500), distorsionando la predicción.
+The Elo model trains on martj42 (~49k matches); that's the project's **canonical**
+naming. Live providers use different spellings ("Congo DR" vs "DR Congo", "Czechia"
+vs "Czech Republic"): unmapped, a team can't find its history and falls back to the
+default rating (``initial_rating`` = 1500), skewing the prediction.
 
-Mapeamos cada variante **verificada** al nombre de martj42. Solo entradas confirmadas
-contra ambas fuentes. Un mapeo erróneo fusionaría dos
-selecciones distintas —p. ej. ``"Congo"`` (Rep. del Congo) ≠ ``"DR Congo"``—, un error
-peor que el fallback a 1500.
+Each alias here is **verified** against both sources. A wrong mapping would merge
+two different teams — e.g. ``"Congo"`` (Republic of Congo) is not ``"DR Congo"`` —
+which is worse than falling back to 1500.
 """
 
 from __future__ import annotations
 
-# football-data.org v4 -> martj42 (base del Elo). Verificado el 22 jun 2026 contra
-# ambos feeds (nombre live exacto a la izquierda, nombre martj42 con histórico real).
+# football-data.org v4 -> martj42 (the Elo base). Verified 22 Jun 2026 against both
+# feeds (live name on the left, martj42 name with real history on the right).
 _FOOTBALLDATA_TO_CANONICAL: dict[str, str] = {
     "Congo DR": "DR Congo",
     "Cape Verde Islands": "Cape Verde",
@@ -24,15 +23,15 @@ _FOOTBALLDATA_TO_CANONICAL: dict[str, str] = {
 
 
 def canonical_footballdata_team(name: str) -> str:
-    """Traduce un nombre de football-data.org al canónico de martj42.
+    """Translate a football-data.org name to its martj42 canonical form.
 
-    Identidad si no hay alias (la mayoría de selecciones coinciden ya).
+    Identity if there's no alias (most teams already match).
     """
     return _FOOTBALLDATA_TO_CANONICAL.get(name, name)
 
 
-# openfootball/worldcup.json -> martj42. Verificado el 24 jun 2026 contra el schedule
-# real del WC2026: 2 de las 48 difieren; las otras 46 coinciden con martj42.
+# openfootball/worldcup.json -> martj42. Verified 24 Jun 2026 against the real
+# WC2026 schedule: 2 of the 48 teams differ; the other 46 already match martj42.
 _OPENFOOTBALL_TO_CANONICAL: dict[str, str] = {
     "USA": "United States",
     "Bosnia & Herzegovina": "Bosnia and Herzegovina",
@@ -40,9 +39,10 @@ _OPENFOOTBALL_TO_CANONICAL: dict[str, str] = {
 
 
 def canonical_openfootball_team(name: str) -> str:
-    """Nombre de openfootball al canónico de martj42 (identidad si no hay alias).
+    """Translate an openfootball name to its martj42 canonical form.
 
-    Sin esto, el baseline pre_tournament caería al rating por defecto (1500) para esas
-    selecciones y 'USA' (anfitrión) no recibiría el bono de sede.
+    Identity if there's no alias. Without this, the pre_tournament baseline would
+    fall back to the default rating (1500) for these teams, and 'USA' (the host)
+    would miss its host bonus.
     """
     return _OPENFOOTBALL_TO_CANONICAL.get(name, name)

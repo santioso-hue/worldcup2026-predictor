@@ -1,4 +1,4 @@
-"""Tests del modelo Dixon-Coles."""
+"""Dixon-Coles model tests."""
 
 from __future__ import annotations
 
@@ -49,7 +49,7 @@ def test_score_matrix_symmetric_for_equal_teams_on_neutral() -> None:
 
 
 def test_dixon_coles_increases_draw_vs_plain_poisson() -> None:
-    # ρ<0 sube los empates de marcador bajo (0-0, 1-1) y baja 1-0/0-1.
+    # rho<0 boosts low-score draws (0-0, 1-1) and lowers 1-0/0-1.
     plain = DixonColesModel(CFG.elo, DixonColesConfig(rho=0.0, max_goals=8))
     dc = DixonColesModel(CFG.elo, DixonColesConfig(rho=-0.13, max_goals=8))
     assert (

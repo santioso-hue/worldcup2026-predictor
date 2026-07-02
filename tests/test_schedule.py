@@ -1,4 +1,4 @@
-"""Tests del parser del schedule backbone (openfootball -> fixtures normalizados)."""
+"""Tests for the schedule backbone parser (openfootball -> normalized fixtures)."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from worldcup.data.schedule import (
     validate_schedule,
 )
 
-# Muestra mínima con el esquema VERIFICADO de openfootball (matchday + knockout).
+# Minimal sample with the VERIFIED openfootball schema (matchday + knockout).
 SAMPLE: dict[str, Any] = {
     "rounds": [
         {
@@ -86,7 +86,7 @@ def test_scheduled_match_has_no_score() -> None:
 
 def test_kickoff_converted_to_utc() -> None:
     fixtures = parse_openfootball(SAMPLE)
-    # 13:00 en UTC-6 -> 19:00 UTC.
+    # 13:00 UTC-6 -> 19:00 UTC.
     mex = fixtures[0]
     assert mex.kickoff_utc.tzinfo == timezone.utc
     assert (mex.kickoff_utc.hour, mex.kickoff_utc.minute) == (19, 0)
@@ -104,7 +104,7 @@ def test_group_teams_extraction() -> None:
     groups = group_teams(fixtures)
     assert groups["Group A"] == ["Mexico", "South Africa"]
     assert groups["Group B"] == ["Canada", "Wales"]
-    # La eliminatoria no aparece como grupo.
+    # Knockout rounds don't show up as groups.
     assert "Round of 32" not in groups
 
 
@@ -120,7 +120,7 @@ def test_flat_matches_wrapper_also_supported() -> None:
     assert fixtures[0].home_team == "Mexico"
 
 
-# --- regresiones: parsing de hora y validación de estructura -----
+# --- regressions: time parsing and structure validation -----
 
 
 def test_missing_time_falls_back_to_midnight_utc() -> None:
@@ -131,8 +131,9 @@ def test_missing_time_falls_back_to_midnight_utc() -> None:
 
 
 def test_parse_match_canonicalizes_team_names_to_martj42() -> None:
-    # openfootball dice "USA"; el Elo (martj42) lo conoce como "United States". Sin
-    # canonicalizar, el baseline pre_tournament lo trataría como equipo sin histórico.
+    # openfootball says "USA"; the Elo source (martj42) knows it as "United States".
+    # Without canonicalizing, the pre_tournament baseline would treat it as a team
+    # with no history.
     m = parse_match(
         {"team1": "USA", "team2": "B", "date": "2026-06-20", "group": "Group A"}
     )
@@ -141,7 +142,7 @@ def test_parse_match_canonicalizes_team_names_to_martj42() -> None:
 
 
 def test_present_but_unparseable_time_raises() -> None:
-    # Con time presente pero offset no reconocido: fail loud (no medianoche silenciosa).
+    # time present but offset unrecognized: fail loud (no silent midnight fallback).
     with pytest.raises(ValueError):
         parse_match(
             {"team1": "A", "team2": "B", "date": "2026-06-20", "time": "21:00 GMT-5"}
@@ -162,19 +163,19 @@ def test_offset_with_minutes_converts_correctly() -> None:
 
 
 def test_validate_schedule_flags_incomplete_structure() -> None:
-    # La muestra tiene 3 partidos, no 104: debe reportar discrepancias.
+    # The sample has 3 matches, not 104: must report discrepancies.
     issues = validate_schedule(parse_openfootball(SAMPLE))
     assert issues
 
 
 def _full_valid_schedule() -> list[NormalizedMatch]:
-    """Schedule estructuralmente válido: 12 grupos de 4 + 32 de eliminatoria."""
+    """Structurally valid schedule: 12 groups of 4 + 32 knockout matches."""
     kickoff = datetime(2026, 6, 11, 18, 0, tzinfo=timezone.utc)
     matches: list[NormalizedMatch] = []
-    for g in "ABCDEFGHIJKL":  # 12 grupos
-        teams = [f"{g}{i}" for i in range(1, 5)]  # 4 equipos
+    for g in "ABCDEFGHIJKL":  # 12 groups
+        teams = [f"{g}{i}" for i in range(1, 5)]  # 4 teams
         for i in range(4):
-            for j in range(i + 1, 4):  # 6 partidos round-robin
+            for j in range(i + 1, 4):  # 6 round-robin matches
                 matches.append(
                     NormalizedMatch(
                         match_id=f"group-{g}-{i}{j}",
@@ -187,7 +188,7 @@ def _full_valid_schedule() -> list[NormalizedMatch]:
                         status=MatchStatus.SCHEDULED,
                     )
                 )
-    for k in range(32):  # 32 partidos de eliminatoria
+    for k in range(32):  # 32 knockout matches
         matches.append(
             NormalizedMatch(
                 match_id=f"ko-{k}",
@@ -210,6 +211,7 @@ def test_validate_schedule_accepts_complete_structure() -> None:
 
 
 # --- Fixture helpers -----
+
 
 _UTC = timezone.utc
 

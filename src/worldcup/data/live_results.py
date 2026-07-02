@@ -1,15 +1,15 @@
-"""Interfaz provider-agnostic para resultados live + esquema normalizado.
+"""Provider-agnostic interface for live results + normalized schema.
 
-Toda fuente live (football-data.org, openfootball) se accede tras
-:class:`LiveResultsProvider`, de modo que el modelo nunca sabe de qué API vienen los
-datos: se puede cambiar de proveedor sin tocar simulación ni viz.
+Every live source (football-data.org, openfootball) is accessed through
+:class:`LiveResultsProvider`, so the model never knows which API the data came
+from: we can swap providers without touching simulation or viz.
 
-Los mapeos de estado y los campos de marcador están **verificados** contra la doc
-oficial de cada proveedor (16 jun 2026). Cada campo de
-:class:`NormalizedMatch` corresponde a un campo documentado.
+Status mappings and score fields are **verified** against each provider's
+official docs (2026-06-16). Every field on :class:`NormalizedMatch` maps to a
+documented field.
 
-Este módulo define SOLO la interfaz + el esquema + los mapeos (funciones puras). Los
-clientes HTTP concretos (con I/O) viven aparte y heredan de
+This module defines ONLY the interface + schema + mappings (pure functions).
+The concrete HTTP clients (with I/O) live elsewhere and inherit from
 :class:`LiveResultsProvider`.
 """
 
@@ -22,12 +22,12 @@ from enum import Enum
 
 
 class MatchStatus(str, Enum):
-    """Estado normalizado de un partido, colapsado a 4 categorías para el modelo.
+    """Normalized match status, collapsed to 4 categories for the model.
 
-    El modelo solo distingue: pendiente (``SCHEDULED``), en juego (``IN_PLAY``),
-    hecho consumado (``FINISHED``) o no disputado (``NOT_PLAYED``: aplazado, suspendido,
-    cancelado). El reconditioning live bloquea únicamente lo que :func:`is_lockable`
-    considere un hecho.
+    The model only distinguishes: not yet started (``SCHEDULED``), in progress
+    (``IN_PLAY``), done (``FINISHED``), or not played (``NOT_PLAYED``:
+    postponed, suspended, cancelled). Live reconditioning only locks what
+    :func:`is_lockable` considers a settled fact.
     """
 
     SCHEDULED = "scheduled"
@@ -36,8 +36,8 @@ class MatchStatus(str, Enum):
     NOT_PLAYED = "not_played"
 
 
-# --- Mapeos raw -> normalizado (VERIFICADOS) -----------------
-# football-data.org v4: campo `match.status`.
+# --- Raw -> normalized mappings (VERIFIED) -----------------
+# football-data.org v4: `match.status` field.
 FOOTBALLDATA_STATUS: dict[str, MatchStatus] = {
     "SCHEDULED": MatchStatus.SCHEDULED,
     "TIMED": MatchStatus.SCHEDULED,
@@ -56,25 +56,25 @@ _STATUS_MAPS: dict[str, dict[str, MatchStatus]] = {
 
 
 def normalize_status(provider: str, raw_code: str) -> MatchStatus:
-    """Traduce el código de estado crudo de un proveedor a :class:`MatchStatus`.
+    """Translate a provider's raw status code into :class:`MatchStatus`.
 
     Parameters
     ----------
     provider:
-        Clave del proveedor (``"football_data"``).
+        Provider key (``"football_data"``).
     raw_code:
-        Código tal cual lo devuelve la API (p. ej. ``"FINISHED"``, ``"IN_PLAY"``).
+        Code as returned by the API (e.g. ``"FINISHED"``, ``"IN_PLAY"``).
 
     Returns
     -------
     MatchStatus
-        Estado normalizado.
+        Normalized status.
 
     Raises
     ------
     KeyError
-        Si el proveedor o el código no están mapeados. Preferimos fallar ruidosamente
-        a adivinar: un código desconocido podría hacernos bloquear un partido por error.
+        If the provider or code isn't mapped. We'd rather fail loudly than
+        guess: an unknown code could make us lock a match by mistake.
     """
     table = _STATUS_MAPS[provider]
     return table[raw_code]
@@ -82,35 +82,35 @@ def normalize_status(provider: str, raw_code: str) -> MatchStatus:
 
 @dataclass(frozen=True, slots=True)
 class NormalizedMatch:
-    """Un partido normalizado, agnóstico al proveedor.
+    """A normalized match, agnostic to the provider.
 
-    Los marcadores son ``None`` mientras esa fase no se haya jugado. Se guardan por
-    fase (no agregados) para no perder información ni adivinar semánticas: ``ft_*`` es
-    el resultado a los 90', ``et_*`` solo si hubo prórroga, ``pen_*`` solo si hubo
-    tanda. Esto permite calcular puntos de grupo (90') y resolver eliminatorias sin
-    ambigüedad.
+    Scores are ``None`` until that phase has been played. They're stored per
+    phase (not aggregated) to avoid losing information or guessing semantics:
+    ``ft_*`` is the 90' result, ``et_*`` only if there was extra time,
+    ``pen_*`` only if it went to a shootout. This lets us compute group points
+    (90') and resolve knockouts without ambiguity.
 
     Attributes
     ----------
     match_id:
-        Identificador estable nuestro (idealmente derivado del schedule, no del
-        proveedor, para que sobreviva un cambio de fuente).
+        Our own stable identifier (ideally derived from the schedule, not the
+        provider, so it survives a source change).
     source / source_match_id:
-        Proveedor de origen y su id nativo (trazabilidad).
+        Origin provider and its native id (traceability).
     kickoff_utc:
-        Hora de inicio en UTC.
+        Kickoff time in UTC.
     home_team / away_team:
-        Nombres de selección (se canonicalizan en ``clean.py``).
+        Team names (canonicalized in ``clean.py``).
     stage:
-        Fase/grupo, p. ej. ``"Group A"`` o ``"Round of 16"``.
+        Stage/group, e.g. ``"Group A"`` or ``"Round of 16"``.
     status:
-        Estado normalizado.
+        Normalized status.
     ht_home/ht_away, ft_home/ft_away, et_home/et_away, pen_home/pen_away:
-        Marcadores por fase (``None`` si no aplica/no disputada).
+        Scores per phase (``None`` if not applicable/not played).
     venue:
-        Sede (opcional).
+        Venue (optional).
     fetched_at:
-        Cuándo se obtuvo este dato (para el sello de "última actualización").
+        When this data was fetched (for the "last updated" stamp).
     """
 
     match_id: str
@@ -134,12 +134,12 @@ class NormalizedMatch:
 
     @property
     def is_finished(self) -> bool:
-        """``True`` si el estado normalizado es ``FINISHED``."""
+        """``True`` if the normalized status is ``FINISHED``."""
         return self.status is MatchStatus.FINISHED
 
     @property
     def decided_by(self) -> str:
-        """Cómo se decidió: ``"PENALTIES"``, ``"EXTRA_TIME"`` o ``"REGULAR_TIME"``."""
+        """How it was decided: ``"PENALTIES"``, ``"EXTRA_TIME"``, ``"REGULAR_TIME"``."""
         if self.pen_home is not None:
             return "PENALTIES"
         if self.et_home is not None:
@@ -148,31 +148,32 @@ class NormalizedMatch:
 
 
 def is_lockable(match: NormalizedMatch) -> bool:
-    """Decide si un partido es un HECHO que el reconditioning live debe bloquear.
+    """Decide if a match is a settled FACT that live reconditioning should lock.
 
-    Bloquear (lock) significa: su marcador deja de muestrearse en Monte Carlo y se
-    trata como dato cierto.
+    Locking means: its score stops being sampled in Monte Carlo and is
+    treated as certain.
 
-    Política: se bloquea un partido ``FINISHED`` que traiga marcador de los 90'
-    (``ft_home`` y ``ft_away`` no ``None``).
+    Policy: lock a ``FINISHED`` match that has a 90' score (``ft_home`` and
+    ``ft_away`` both not ``None``).
 
-    - ``SCHEDULED``, ``IN_PLAY`` y ``NOT_PLAYED`` nunca se bloquean.
-    - Un ``FINISHED`` sin marcador (dato parcial/sospechoso) NO se bloquea: se conserva
-      el último snapshot válido.
-    - Los resultados técnicos (``AWD``/``WO``) no reciben trato especial: en un Mundial
-      moderno no ha ocurrido nunca un walkover/resultado adjudicado, así que no vale la
-      complejidad. Si llegara uno sin marcador de 90', simplemente no se bloquearía.
+    - ``SCHEDULED``, ``IN_PLAY`` and ``NOT_PLAYED`` are never locked.
+    - A ``FINISHED`` match with no score (partial/suspect data) is NOT
+      locked: we keep the last valid snapshot instead.
+    - Walkovers/awarded results (``AWD``/``WO``) get no special handling: a
+      modern World Cup has never had one, so it's not worth the complexity.
+      If one showed up without a 90' score, it just wouldn't get locked.
 
     Parameters
     ----------
     match:
-        Partido normalizado candidato a bloqueo.
+        Normalized match candidate for locking.
 
     Returns
     -------
     bool
-        ``True`` si debe bloquearse como hecho consumado; ``False`` si debe seguir
-        simulándose (o ignorarse) por estar pendiente, en juego o ser dudoso.
+        ``True`` if it should be locked as a settled fact; ``False`` if it
+        should keep being simulated (or ignored) because it's pending, in
+        play, or doubtful.
     """
     if match.status is not MatchStatus.FINISHED:
         return False
@@ -180,40 +181,40 @@ def is_lockable(match: NormalizedMatch) -> bool:
 
 
 class LiveResultsProvider(ABC):
-    """Interfaz estable para cualquier fuente de resultados (live o fallback).
+    """Stable interface for any results source (live or fallback).
 
-    Cualquier cliente (football-data.org, openfootball) la implementa devolviendo
-    siempre :class:`NormalizedMatch`; el resto del proyecto depende solo de esta
-    interfaz.
+    Any client (football-data.org, openfootball) implements it and always
+    returns :class:`NormalizedMatch`; the rest of the project depends only on
+    this interface.
 
-    Política de uso: polling **solo por ventanas** con partidos en juego,
-    cada 10–15 min; cachear lo que cambia lento. Nunca polling continuo.
+    Usage policy: poll **only in windows** with matches in play, every
+    10-15 min; cache anything that changes slowly. Never poll continuously.
     """
 
     @property
     @abstractmethod
     def name(self) -> str:
-        """Clave del proveedor (p. ej. ``"football_data"``); usada en ``source``."""
+        """Provider key (e.g. ``"football_data"``); used in ``source``."""
 
     @abstractmethod
     def get_schedule(self) -> list[NormalizedMatch]:
-        """Devuelve los 104 fixtures del WC2026 (jugados y por jugar)."""
+        """Return all 104 WC2026 fixtures (played and upcoming)."""
 
     @abstractmethod
     def get_live_fixtures(self) -> list[NormalizedMatch]:
-        """Devuelve los partidos actualmente en juego (status IN_PLAY/PAUSED)."""
+        """Return matches currently in play (status IN_PLAY/PAUSED)."""
 
     @abstractmethod
     def get_finished_results(
         self, since: datetime | None = None
     ) -> list[NormalizedMatch]:
-        """Devuelve resultados FINALIZADOS.
+        """Return FINISHED results.
 
         Parameters
         ----------
         since:
-            Si se indica, excluye partidos cuyo **kickoff** (``kickoff_utc``) sea
-            anterior a ``since`` (UTC). El filtro es sobre la hora de inicio, no la de
-            finalización: un partido que arrancó antes de ``since`` pero terminó después
-            queda excluido.
+            If given, excludes matches whose **kickoff** (``kickoff_utc``) is
+            before ``since`` (UTC). The filter is on kickoff time, not finish
+            time: a match that started before ``since`` but finished after it
+            is excluded.
         """

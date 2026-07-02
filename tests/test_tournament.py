@@ -1,4 +1,4 @@
-"""Tests del Monte Carlo condicional (invariantes del bracket + reproducibilidad)."""
+"""Tests for the conditional Monte Carlo (bracket invariants + reproducibility)."""
 
 from __future__ import annotations
 
@@ -33,11 +33,11 @@ def _run(
 def test_exactly_one_champion_per_run() -> None:
     probs = _run(BASE_RATINGS)
     total = sum(probs[t]["champion"] for t in ALL_TEAMS)
-    assert abs(total - 1.0) < 1e-9  # las P(campeón) suman 1
+    assert abs(total - 1.0) < 1e-9  # P(champion) across all teams sums to 1
 
 
 def test_advance_probabilities_average_to_two_thirds() -> None:
-    # 32 de 48 avanzan a R32 -> la media de P(avanzar) es 32/48.
+    # 32 of 48 advance to R32 -> mean P(advance) is 32/48.
     probs = _run(BASE_RATINGS)
     mean_advance = sum(probs[t]["advance"] for t in ALL_TEAMS) / len(ALL_TEAMS)
     assert abs(mean_advance - 32 / 48) < 1e-9
@@ -49,7 +49,7 @@ def test_reproducible_for_same_seed() -> None:
 
 def test_strongest_team_is_most_likely_champion() -> None:
     ratings = dict(BASE_RATINGS)
-    ratings["A1"] = 2400.0  # muy por encima del resto
+    ratings["A1"] = 2400.0  # far above the rest
     probs = _run(ratings, runs=300)
     champ = {t: probs[t]["champion"] for t in ALL_TEAMS}
     assert max(champ, key=lambda t: champ[t]) == "A1"
@@ -58,36 +58,36 @@ def test_strongest_team_is_most_likely_champion() -> None:
 
 def test_net_host_advantage_is_signed_and_neutral_between_hosts() -> None:
     hosts = {"USA": 37.5}
-    assert _net_host_advantage("USA", "Brazil", hosts) == 37.5  # local anfitrión
-    assert _net_host_advantage("Brazil", "USA", hosts) == -37.5  # visitante anfitrión
-    assert _net_host_advantage("Brazil", "Argentina", hosts) == 0.0  # ninguno anfitrión
+    assert _net_host_advantage("USA", "Brazil", hosts) == 37.5  # home is host
+    assert _net_host_advantage("Brazil", "USA", hosts) == -37.5  # away is host
+    assert _net_host_advantage("Brazil", "Argentina", hosts) == 0.0  # neither is host
 
 
 def test_host_advantage_raises_host_champion_probability() -> None:
-    # Con ratings iguales, el bono de sede debe subir la P(campeón) del anfitrión.
+    # With equal ratings, the host bonus should raise the host's P(champion).
     base = _run(BASE_RATINGS, runs=400, seed=11)
     boosted = _run(BASE_RATINGS, runs=400, seed=11, host_advantage={"A1": 300.0})
     assert boosted["A1"]["champion"] > base["A1"]["champion"]
 
 
 def test_rejects_malformed_groups() -> None:
-    # 11 grupos en vez de 12 -> error claro de entrada (no KeyError opaco luego).
+    # 11 groups instead of 12 -> clear input error (not an opaque KeyError later).
     bad = {g: [f"{g}{i}" for i in range(1, 5)] for g in "ABCDEFGHIJK"}
     ratings = {t: 1500.0 for teams in bad.values() for t in teams}
-    with pytest.raises(ValueError, match="12 grupos"):
+    with pytest.raises(ValueError, match="12 groups"):
         run_tournament(bad, ratings, MODEL, ANNEX, runs=10, seed=1)
 
 
 def test_rejects_group_with_wrong_team_count() -> None:
     bad = {g: [f"{g}{i}" for i in range(1, 5)] for g in "ABCDEFGHIJKL"}
-    bad["A"] = ["A1", "A2", "A3"]  # solo 3 equipos
+    bad["A"] = ["A1", "A2", "A3"]  # only 3 teams
     ratings = {t: 1500.0 for teams in bad.values() for t in teams}
     with pytest.raises(ValueError, match="!= 4"):
         run_tournament(bad, ratings, MODEL, ANNEX, runs=10, seed=1)
 
 
 def test_locked_group_result_eliminates_a_team() -> None:
-    # Bloquea el grupo A para que A4 pierda los 3 -> termina 4º -> nunca avanza.
+    # Lock group A so A4 loses all 3 -> finishes 4th -> never advances.
     locked = {
         frozenset(("A1", "A2")): PlayedMatch("A1", "A2", 1, 0),
         frozenset(("A1", "A3")): PlayedMatch("A1", "A3", 1, 0),
@@ -97,5 +97,5 @@ def test_locked_group_result_eliminates_a_team() -> None:
         frozenset(("A3", "A4")): PlayedMatch("A3", "A4", 5, 0),
     }
     probs = _run(BASE_RATINGS, locked_group=locked)
-    assert probs["A4"]["advance"] == 0.0  # eliminado en grupos, condicionado
-    assert probs["A1"]["advance"] == 1.0  # 1º de grupo, siempre avanza
+    assert probs["A4"]["advance"] == 0.0  # eliminated in groups, conditioned
+    assert probs["A1"]["advance"] == 1.0  # group winner, always advances

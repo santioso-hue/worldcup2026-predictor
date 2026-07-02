@@ -1,10 +1,10 @@
-"""Elo dinámico (funciones puras, sin I/O, sin RNG — el Elo es determinista).
+"""Dynamic Elo (pure functions, no I/O, no RNG — Elo is deterministic).
 
-Ajuste secuencial cronológico sobre el histórico martj42:
+Sequential chronological update over the martj42 history:
 
-    Δ = K_base(importancia) · G(margen) · recency · (resultado − E)
+    Δ = K_base(importance) · G(margin) · recency · (result − E)
 
-donde ``E`` es la expectativa logística con bono de localía.
+where ``E`` is the logistic expectation with home-advantage bonus.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from datetime import date
 from worldcup.config import EloConfig, GoalMarginConfig
 from worldcup.data.historical import HistoricalMatch
 
-# Constante de calendario (no es un hiperparámetro): días promedio por mes = 365.25/12.
+# Calendar constant (not a hyperparameter): average days per month = 365.25/12.
 DAYS_PER_MONTH = 30.4375
 
 
@@ -24,18 +24,18 @@ def expected_score(
     home_advantage: float = 0.0,
     denominator: float = 400.0,
 ) -> float:
-    """Probabilidad logística de que el local puntúe (victoria=1, empate=0.5).
+    """Logistic probability that the home team scores (win=1, draw=0.5).
 
     ``E = 1 / (1 + 10^(-(R_home + home_advantage - R_away) / denominator))``.
 
     Parameters
     ----------
     rating_home, rating_away:
-        Ratings Elo de local y visitante.
+        Elo ratings for home and away teams.
     home_advantage:
-        Bono de localía en puntos Elo (``0`` en cancha neutral).
+        Home-field bonus in Elo points (``0`` on neutral ground).
     denominator:
-        Escala Elo (``400`` estándar; ``elo.elo_per_goal_denominator``).
+        Elo scale (``400`` standard; ``elo.elo_per_goal_denominator``).
     """
     diff = (rating_home + home_advantage) - rating_away
     return 1.0 / (1.0 + 10.0 ** (-diff / denominator))
@@ -44,12 +44,12 @@ def expected_score(
 def recency_weight(
     match_date: date, reference_date: date, half_life_months: float
 ) -> float:
-    """Peso temporal del partido: ``0.5^(edad_meses / half_life_months)``.
+    """Time weight of a match: ``0.5^(age_months / half_life_months)``.
 
-    La edad es ``reference_date − match_date``. En la referencia el peso es ``1``; a
-    ``half_life_months`` de antigüedad, ``0.5``. ``reference_date`` debe ser ≥ todas las
-    fechas (típicamente la fecha del último partido del snapshot), lo que hace el peso
-    determinista por snapshot.
+    Age is ``reference_date − match_date``. At the reference the weight is ``1``; at
+    ``half_life_months`` old, ``0.5``. ``reference_date`` should be ≥ every match date
+    (typically the last match date in the snapshot), which keeps the weight
+    deterministic per snapshot.
     """
     age_months = (reference_date - match_date).days / DAYS_PER_MONTH
     return 0.5 ** (age_months / half_life_months)
@@ -66,10 +66,10 @@ _CONTINENTAL_KEYWORDS = (
 
 
 def classify_importance(tournament: str) -> str:
-    """Mapea el nombre de un torneo a una clave de ``elo.k_factors``.
+    """Map a tournament name to an ``elo.k_factors`` key.
 
-    Reglas por palabra clave (documentadas y ajustables, ver el spec). Lo no reconocido
-    cae en ``"default"``.
+    Keyword-based rules (documented and tunable, see the spec). Anything unrecognized
+    falls back to ``"default"``.
     """
     t = tournament.lower()
     if "world cup" in t and "qualif" in t:
@@ -86,17 +86,17 @@ def classify_importance(tournament: str) -> str:
 
 
 def goal_margin_multiplier(margin: int, cfg: GoalMarginConfig) -> float:
-    """Multiplicador del factor K por margen de gol (eloratings.net).
+    """K-factor multiplier by goal margin (eloratings.net).
 
-    ``G = 1`` si ``|margin| ≤ 1``; ``cfg.two_goal`` si ``|margin| == 2``; si no
-    ``(cfg.offset + |margin|) / cfg.divisor`` (rendimientos decrecientes).
+    ``G = 1`` if ``|margin| ≤ 1``; ``cfg.two_goal`` if ``|margin| == 2``; otherwise
+    ``(cfg.offset + |margin|) / cfg.divisor`` (diminishing returns).
 
     Parameters
     ----------
     margin:
-        Diferencia de goles (puede ser negativa; se usa el valor absoluto).
+        Goal difference (can be negative; the absolute value is used).
     cfg:
-        Parámetros del multiplicador.
+        Multiplier parameters.
     """
     d = abs(margin)
     if d <= 1:
@@ -107,7 +107,7 @@ def goal_margin_multiplier(margin: int, cfg: GoalMarginConfig) -> float:
 
 
 def _result(home_score: int, away_score: int) -> float:
-    """Resultado desde la óptica del local: victoria=1, empate=0.5, derrota=0."""
+    """Result from the home team's perspective: win=1, draw=0.5, loss=0."""
     if home_score > away_score:
         return 1.0
     if home_score == away_score:
@@ -120,27 +120,28 @@ def fit_elo(
     cfg: EloConfig,
     reference_date: date | None = None,
 ) -> dict[str, float]:
-    """Ajusta ratings Elo con un paso secuencial cronológico sobre el histórico.
+    """Fit Elo ratings with a sequential chronological pass over the history.
 
-    Para cada partido:
-    ``Δ = K_base · G(margen) · recency · (resultado − E)``. El local suma ``Δ`` y el
-    visitante resta ``Δ`` (simétrico). El orden es determinista — ``(fecha, local,
-    visitante)`` — así que el resultado no depende del orden de entrada.
+    For each match:
+    ``Δ = K_base · G(margin) · recency · (result − E)``. The home team gains
+    ``Δ`` and the away team loses ``Δ`` (symmetric). The processing order is
+    deterministic — ``(date, home, away)`` — so the result doesn't depend on
+    input order.
 
     Parameters
     ----------
     matches:
-        Partidos históricos. Vacío -> ``{}``.
+        Historical matches. Empty -> ``{}``.
     cfg:
-        Hiperparámetros Elo (``config.elo``).
+        Elo hyperparameters (``config.elo``).
     reference_date:
-        Ancla del peso de recencia. Por defecto ``max(match.date)`` (el último partido
-        del snapshot), lo que mantiene la salida determinista por snapshot.
+        Anchor for the recency weight. Defaults to ``max(match.date)`` (the last
+        match in the snapshot), which keeps output deterministic per snapshot.
 
     Returns
     -------
     dict[str, float]
-        ``team -> rating`` final.
+        Final ``team -> rating`` mapping.
     """
     if not matches:
         return {}
@@ -150,9 +151,9 @@ def fit_elo(
     ratings: dict[str, float] = {}
     init = cfg.initial_rating
     default_k = cfg.k_factors["default"]
-    # Incluimos el marcador en la clave: dos filas con misma fecha+equipos pero distinto
-    # resultado (ocurre en martj42) se ordenan de forma reproducible -> el invariante
-    # "independiente del orden de entrada" se cumple aun con claves duplicadas.
+    # Include the score in the sort key: two rows with the same date+teams but a
+    # different result (happens in martj42) sort reproducibly, so the
+    # order-independence invariant holds even with duplicate keys.
     ordered = sorted(
         matches,
         key=lambda m: (m.date, m.home_team, m.away_team, m.home_score, m.away_score),

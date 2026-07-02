@@ -1,9 +1,10 @@
-"""Orquestación del pipeline: núcleo puro (sin red/fs) + helpers de I/O finos.
+"""Pipeline orchestration: pure core (no network/fs) + thin I/O helpers.
 
-``run_pipeline`` encadena ``reconcile`` → ``fit_elo`` → ``build_state`` → Monte Carlo y
-devuelve las probabilidades + los matches reconciliados (para snapshotear). El núcleo no
-toca red ni fs, así que se testea con fixtures; el I/O (fetch, snapshot, figuras) va en
-``scripts/``. ``reconcile`` alimenta ``build_state`` (antes no estaba cableado).
+``run_pipeline`` chains ``reconcile`` -> ``fit_elo`` -> ``build_state`` -> Monte Carlo
+and returns the probabilities + the reconciled matches (for snapshotting). The core
+never touches the network or filesystem, so it's tested with fixtures; I/O (fetch,
+snapshot, figures) lives in ``scripts/``. ``reconcile`` feeds ``build_state`` (that
+wiring used to be missing).
 """
 
 from __future__ import annotations
@@ -30,7 +31,7 @@ from .simulation.state import build_state, run_from_state
 
 @dataclass(frozen=True)
 class PipelineResult:
-    """Salida del pipeline: probabilidades, ratings, grupos y anomalías de reconcile."""
+    """Pipeline output: probabilities, ratings, groups, and reconcile anomalies."""
 
     probabilities: dict[str, dict[str, float]]
     ratings: dict[str, float]
@@ -50,27 +51,27 @@ def run_pipeline(
     reference_date: date | None = None,
     history_cutoff: date | None = None,
 ) -> tuple[PipelineResult, list[NormalizedMatch]]:
-    """``reconcile`` → ``fit_elo`` → ``build_state`` → Monte Carlo (sin I/O).
+    """``reconcile`` -> ``fit_elo`` -> ``build_state`` -> Monte Carlo (no I/O).
 
-    Cada equipo del backbone recibe un rating: el de ``fit_elo`` o, si no tiene
-    histórico, ``initial_rating`` (``build_state`` exige rating para todos, fail-loud).
-    ``history_cutoff`` (baseline pre-torneo) descarta los partidos en/posteriores a esa
-    fecha, para no contaminar el Elo con resultados del torneo en curso. Devuelve el
-    resultado y los matches reconciliados (para snapshotear).
+    Every team in the backbone gets a rating: the one from ``fit_elo``, or
+    ``initial_rating`` if it has no history (``build_state`` requires a rating for
+    everyone, fail-loud). ``history_cutoff`` (pre-tournament baseline) drops matches on
+    or after that date, so the Elo doesn't get contaminated by in-tournament results.
+    Returns the result plus the reconciled matches (for snapshotting).
     """
     rec = reconcile(previous, incoming)
     if history_cutoff is not None:
         history = [m for m in history if m.date < history_cutoff]
     fitted = fit_elo(history, config.elo, reference_date=reference_date)
-    # El universo de equipos son los participantes de la fase de grupos (los 48 reales);
-    # las llaves KO del backbone traen etiquetas de slot ("2A", "1E"), no selecciones.
-    # `sorted` -> orden determinista de equipos (independiente de PYTHONHASHSEED), para
-    # que el artefacto JSON sea byte-reproducible entre corridas/procesos.
+    # Team universe = group-stage participants (the real 48); the backbone's KO slots
+    # carry placeholder labels ("2A", "1E"), not actual teams.
+    # `sorted` -> deterministic team order (independent of PYTHONHASHSEED), so the JSON
+    # artifact is byte-reproducible across runs/processes.
     teams = sorted(
         {team for members in group_teams(rec.matches).values() for team in members}
     )
     ratings = {t: fitted.get(t, config.elo.initial_rating) for t in teams}
-    # Bono de sede: las anfitrionas reciben elo.host_advantage en sus partidos.
+    # Host bonus: host nations get elo.host_advantage in their matches.
     hosts = set(config.simulation.hosts)
     host_advantage = {t: config.elo.host_advantage for t in teams if t in hosts}
     state = build_state(rec.matches, ratings)
@@ -102,12 +103,13 @@ def outcome_from_ratings(
     *,
     host: str | None = None,
 ) -> tuple[MatchOutcome, np.ndarray]:
-    """1X2 + matriz Dixon-Coles desde ratings YA ajustados (sin re-ajustar Elo).
+    """1X2 + Dixon-Coles matrix from ratings that are ALREADY fit (no re-fitting Elo).
 
-    Permite predecir muchos partidos reusando un solo ``fit_elo``: el dashboard ajusta
-    el Elo una vez y llama esto por fixture. ``host`` aplica la ventaja de sede del
-    Mundial al anfitrión (``home`` o ``away``); en sede neutral no hay ventaja. Equipos
-    sin rating usan ``initial_rating``.
+    Lets you predict many matches while reusing a single ``fit_elo`` call: the
+    dashboard fits Elo once and calls this per fixture. ``host`` applies the World Cup
+    host advantage to whichever side (``home`` or ``away``) is hosting; on neutral
+    ground there's no advantage. Teams without a rating fall back to
+    ``initial_rating``.
     """
     rating_home = ratings.get(home, config.elo.initial_rating)
     rating_away = ratings.get(away, config.elo.initial_rating)
@@ -131,10 +133,11 @@ def predict_fixture(
     host: str | None = None,
     reference_date: date | None = None,
 ) -> tuple[MatchOutcome, np.ndarray]:
-    """1X2 + matriz de marcadores Dixon-Coles de un partido (puro, sin I/O).
+    """1X2 + Dixon-Coles scoreline matrix for one match (pure, no I/O).
 
-    Ajusta el Elo del histórico y delega en :func:`outcome_from_ratings`. ``host``
-    aplica la ventaja de sede del Mundial; sin histórico se usa ``initial_rating``.
+    Fits Elo from history and delegates to :func:`outcome_from_ratings`. ``host``
+    applies the World Cup host advantage; without history it falls back to
+    ``initial_rating``.
     """
     fitted = fit_elo(history, config.elo, reference_date=reference_date)
     return outcome_from_ratings(home, away, fitted, config, host=host)
@@ -149,10 +152,10 @@ def predict_match(
     host: str | None = None,
     reference_date: date | None = None,
 ) -> MatchOutcome:
-    """1X2 de un partido puntual desde los ratings Elo del histórico.
+    """1X2 for a single match from the historical Elo ratings.
 
-    Envoltura sobre :func:`predict_fixture` (devuelve solo el 1X2). ``host`` aplica la
-    ventaja de sede del Mundial al anfitrión; sin histórico se usa ``initial_rating``.
+    Thin wrapper over :func:`predict_fixture` (returns only the 1X2). ``host`` applies
+    the World Cup host advantage; without history it falls back to ``initial_rating``.
     """
     outcome, _ = predict_fixture(
         home, away, history, config, host=host, reference_date=reference_date
@@ -170,16 +173,16 @@ def knockout_advance_probability(
     runs: int = 2000,
     seed: int = DEFAULT_SEED,
 ) -> float:
-    """P(``home`` avanza) en una eliminatoria, con prórroga y penales reales.
+    """P(``home`` advances) in a knockout tie, with real extra time and penalties.
 
-    Muestrea el partido ``runs`` veces con :func:`simulate_match`
-    (``knockout=True``), que resuelve los empates con prórroga (Poisson) y
-    penales (moneda ponderada por Elo), y devuelve la fracción de veces que
-    avanza ``home``. Determinista dado ``seed``. Por construcción
-    ``avance >= P(gana en 90)``: los empates también pueden caer a su favor.
+    Samples the match ``runs`` times with :func:`simulate_match` (``knockout=True``),
+    which resolves draws via extra time (Poisson) and penalties (Elo-weighted coin
+    flip), and returns the fraction of times ``home`` advances. Deterministic given
+    ``seed``. By construction ``advance >= P(win in 90)``: draws can also break
+    ``home``'s way.
     """
     if runs <= 0:
-        raise ValueError("runs debe ser > 0")
+        raise ValueError("runs must be > 0")
     rating_home = ratings.get(home, config.elo.initial_rating)
     rating_away = ratings.get(away, config.elo.initial_rating)
     if host == home:
@@ -209,11 +212,11 @@ def knockout_advance_probability(
     return wins / runs
 
 
-# --- helpers de I/O finos (testeables con tmp_path, sin red) ---
+# --- thin I/O helpers (testable with tmp_path, no network) ---
 
 
 def _fixture_row(match: NormalizedMatch) -> dict[str, str]:
-    """Fila serializable de un fixture para el artefacto del dashboard."""
+    """Serializable fixture row for the dashboard artifact."""
     return {
         "home": match.home_team,
         "away": match.away_team,
@@ -232,11 +235,11 @@ def write_probabilities(
     latest_pointer: str = "latest.json",
     update_pointer: bool = True,
 ) -> Path:
-    """Escribe ``probabilities_<ts>.json`` y, si ``update_pointer``, el ``latest``.
+    """Write ``probabilities_<ts>.json`` plus ``latest`` if ``update_pointer`` is set.
 
-    El payload incluye ``groups`` (tablas del dashboard) y ``fixtures`` (los partidos
-    aún por jugar, para el panel de pronóstico). Los replays/baselines escriben su JSON
-    pero NO mueven el puntero live.
+    The payload includes ``groups`` (dashboard tables) and ``fixtures`` (matches still
+    to be played, for the predictor panel). Replays/baselines write their JSON but do
+    NOT move the live pointer.
     """
     out = Path(outdir)
     out.mkdir(parents=True, exist_ok=True)
@@ -257,7 +260,7 @@ def write_probabilities(
 def load_latest_probabilities(
     outdir: Path | str, *, latest_pointer: str = "latest.json"
 ) -> dict[str, dict[str, float]] | None:
-    """Carga las probabilidades del último run (para deltas ↑/↓); ``None`` si no hay."""
+    """Load probabilities from the latest run (for up/down deltas); ``None`` if none."""
     out = Path(outdir)
     pointer = out / latest_pointer
     if not pointer.exists():
@@ -273,7 +276,7 @@ def load_latest_probabilities(
 
 @dataclass(frozen=True)
 class RunArtifact:
-    """Una corrida persistida: timestamp, grupos, fixtures por jugar y probs."""
+    """A persisted run: timestamp, groups, remaining fixtures, and probabilities."""
 
     timestamp: str
     groups: dict[str, list[str]]
@@ -284,7 +287,7 @@ class RunArtifact:
 def load_latest_run(
     outdir: Path | str, *, latest_pointer: str = "latest.json"
 ) -> RunArtifact | None:
-    """Carga la última corrida (timestamp + grupos + probabilidades); ``None``."""
+    """Load the latest run (timestamp + groups + probabilities); ``None`` if none."""
     out = Path(outdir)
     pointer = out / latest_pointer
     if not pointer.exists():
@@ -309,7 +312,7 @@ def render_outputs(
     *,
     ts: str,
 ) -> list[Path]:
-    """Renderiza el ranking de campeón (con deltas vs el run previo) y lo guarda."""
+    """Render the champion ranking (with deltas vs. the previous run) and save it."""
     from .viz.charts import prepare_champion_ranking, render_champion_ranking
     from .viz.export import save_figure
     from .viz.theme import PORTRAIT
@@ -321,5 +324,5 @@ def render_outputs(
         else None
     )
     rows = prepare_champion_ranking(champion, previous_champion)
-    figure = render_champion_ranking(rows, stamp=f"Actualizado {ts}")
+    figure = render_champion_ranking(rows, stamp=f"Updated {ts}")
     return [save_figure(figure, f"champion_{ts}", PORTRAIT, outdir=outdir)]

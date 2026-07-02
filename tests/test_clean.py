@@ -1,4 +1,4 @@
-"""Tests de validación y reconciliación (conservar el último snapshot válido)."""
+"""Tests for validation and reconciliation (keeping the last valid snapshot)."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ def _m(match_id: str, **kw: object) -> NormalizedMatch:
     return NormalizedMatch(**base)  # type: ignore[arg-type]
 
 
-# --- validación -------------------------------------------------------------
+# --- validation --------------------------------------------------------------
 
 
 def test_healthy_finished_has_no_issues() -> None:
@@ -63,12 +63,12 @@ def test_extratime_one_sided_flagged() -> None:
     m = _m(
         "x", status=MatchStatus.FINISHED, ft_home=1, ft_away=1, et_home=2
     )  # et_away None
-    assert any("prórroga incompleta" in i for i in validate_match(m))
+    assert any("incomplete extra time" in i for i in validate_match(m))
 
 
 def test_knockout_draw_without_resolution_flagged() -> None:
     ko = _m("k", stage="Round of 16", status=MatchStatus.FINISHED, ft_home=1, ft_away=1)
-    assert any("empate sin resolución" in i for i in validate_match(ko))
+    assert any("draw with no resolution" in i for i in validate_match(ko))
 
 
 def test_knockout_draw_resolved_by_penalties_is_clean() -> None:
@@ -91,7 +91,7 @@ def test_group_draw_is_legal() -> None:
     assert validate_match(g) == []
 
 
-# --- reconciliación ---------------------------------------------------------
+# --- reconciliation -----------------------------------------------------------
 
 
 def test_normal_progression_accepts_incoming() -> None:
@@ -104,28 +104,28 @@ def test_normal_progression_accepts_incoming() -> None:
 
 def test_suspicious_incoming_keeps_previous() -> None:
     prev = [_m("a", status=MatchStatus.SCHEDULED)]
-    inc = [_m("a", status=MatchStatus.FINISHED)]  # finished sin marcador
+    inc = [_m("a", status=MatchStatus.FINISHED)]  # finished with no score
     res = reconcile(prev, inc)
-    assert res.matches[0].status is MatchStatus.SCHEDULED  # se conservó el previo
+    assert res.matches[0].status is MatchStatus.SCHEDULED  # previous was kept
     assert res.anomalies and res.anomalies[0][0] == "a"
 
 
 def test_suspicious_incoming_without_previous_is_dropped() -> None:
     res = reconcile([], [_m("a", status=MatchStatus.FINISHED)])
     assert res.matches == []
-    assert res.anomalies and "descartado" in res.anomalies[0][1]
+    assert res.anomalies and "dropped" in res.anomalies[0][1]
 
 
 def test_locked_result_is_immutable() -> None:
     prev = [_m("a", status=MatchStatus.FINISHED, ft_home=2, ft_away=0)]
-    inc = [_m("a", status=MatchStatus.FINISHED, ft_home=3, ft_away=0)]  # contradice
+    inc = [_m("a", status=MatchStatus.FINISHED, ft_home=3, ft_away=0)]  # contradicts it
     res = reconcile(prev, inc)
     assert (res.matches[0].ft_home, res.matches[0].ft_away) == (2, 0)
-    assert res.anomalies and "bloqueado" in res.anomalies[0][1]
+    assert res.anomalies and "locked" in res.anomalies[0][1]
 
 
 def test_locked_resolution_is_immutable() -> None:
-    # Mismo 90' (1-1) pero resolución distinta: ET-decidido no puede pasar a PEN.
+    # Same 90' (1-1) but different resolution: ET-decided can't become PEN-decided.
     prev = [
         _m(
             "k",
@@ -151,8 +151,8 @@ def test_locked_resolution_is_immutable() -> None:
         )
     ]
     res = reconcile(prev, inc)
-    assert (res.matches[0].et_home, res.matches[0].et_away) == (2, 1)  # conserva previo
-    assert res.anomalies and "bloqueado" in res.anomalies[0][1]
+    assert (res.matches[0].et_home, res.matches[0].et_away) == (2, 1)  # kept previous
+    assert res.anomalies and "locked" in res.anomalies[0][1]
 
 
 def test_partial_feed_preserves_missing_matches() -> None:
@@ -160,7 +160,7 @@ def test_partial_feed_preserves_missing_matches() -> None:
         _m("a", status=MatchStatus.FINISHED, ft_home=1, ft_away=0),
         _m("b", status=MatchStatus.SCHEDULED),
     ]
-    inc = [_m("a", status=MatchStatus.FINISHED, ft_home=1, ft_away=0)]  # falta "b"
+    inc = [_m("a", status=MatchStatus.FINISHED, ft_home=1, ft_away=0)]  # "b" is missing
     res = reconcile(prev, inc)
     ids = {m.match_id for m in res.matches}
-    assert ids == {"a", "b"}  # "b" se conserva aunque no vino en el feed
+    assert ids == {"a", "b"}  # "b" is kept even though it wasn't in the feed

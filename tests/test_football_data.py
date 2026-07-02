@@ -1,4 +1,4 @@
-"""Tests de football-data.org: parser puro + provider con sesión falsa (sin red)."""
+"""football-data.org tests: pure parser + provider with a fake session (no network)."""
 
 from __future__ import annotations
 
@@ -57,7 +57,7 @@ TIMED = {
     },
 }
 
-# Slot de eliminatoria sin resolver: v4 devuelve las 32 llaves con equipos `None`.
+# Unresolved knockout slot: v4 returns all 32 ties with `None` teams.
 UNDETERMINED_KO = {
     "id": 400,
     "utcDate": "2026-06-28T19:00:00Z",
@@ -82,30 +82,28 @@ def test_parse_group_finished() -> None:
     assert m.stage == "Group A"
     assert m.match_id == "2026-06-11-mexico-vs-south-africa"
     assert m.source == "football_data" and m.source_match_id == "100"
-    assert (m.pen_home, m.pen_away) == (None, None)  # sin penales
+    assert (m.pen_home, m.pen_away) == (None, None)  # no penalties
 
 
 def test_parse_penalty_ko_encodes_winner() -> None:
-    # v4 no desglosa la tanda: fullTime queda 1-1, el ganador va en `winner`.
+    # v4 doesn't break out the shootout: fullTime stays 1-1, the winner is in `winner`.
     m = parse_footballdata_match(KO_PENALTIES)
     assert m.status is MatchStatus.FINISHED
     assert (m.ft_home, m.ft_away) == (1, 1)
-    assert (m.et_home, m.et_away) == (1, 1)  # et reflejado = ft (empate tras prórroga)
-    assert (m.pen_home, m.pen_away) == (0, 1)  # ganador AWAY -> _winner_of elige visita
+    assert (m.et_home, m.et_away) == (1, 1)  # et mirrored = ft (draw after extra time)
+    assert (m.pen_home, m.pen_away) == (0, 1)  # AWAY won -> _winner_of picks away
     assert m.stage == "Final"
 
 
 def test_penalty_ko_survives_validation_and_reconcile() -> None:
-    # Regresión: el KO por penales del feed live debe pasar validate_match y NO ser
-    # descartado por reconcile (antes "penales sin prórroga" lo marcaba sospechoso y
-    # la llave ya jugada se re-simulaba).
+    # Regression: a penalty-decided KO from the live feed must pass validate_match and
+    # NOT get dropped by reconcile (previously "penalties without extra time" flagged
+    # it as suspicious and the already-played tie got re-simulated).
     m = parse_footballdata_match(KO_PENALTIES)
-    assert validate_match(m) == []  # sano
+    assert validate_match(m) == []  # clean
     rec = reconcile([], [m])
     assert rec.anomalies == []
-    assert [x.source_match_id for x in rec.matches] == [
-        "200"
-    ]  # se conserva, no se tira
+    assert [x.source_match_id for x in rec.matches] == ["200"]  # kept, not dropped
 
 
 def test_parse_timed_is_scheduled() -> None:
@@ -115,8 +113,9 @@ def test_parse_timed_is_scheduled() -> None:
 
 
 def test_parse_canonicalizes_team_names_to_martj42() -> None:
-    # football-data dice "Congo DR"; el Elo (martj42) lo conoce como "DR Congo". Sin
-    # canonicalizar, el equipo caería al rating por defecto (1500) -> predicción rota.
+    # football-data says "Congo DR"; the Elo source (martj42) knows it as "DR Congo".
+    # Without canonicalizing, the team would fall back to the default rating (1500)
+    # -> broken prediction.
     raw = {
         "id": 500,
         "utcDate": "2026-06-24T02:00:00Z",
@@ -133,11 +132,11 @@ def test_parse_canonicalizes_team_names_to_martj42() -> None:
         },
     }
     m = parse_footballdata_match(raw)
-    assert m.away_team == "DR Congo"  # canonicalizado
-    assert m.match_id == "2026-06-24-colombia-vs-dr-congo"  # id usa el nombre canónico
+    assert m.away_team == "DR Congo"  # canonicalized
+    assert m.match_id == "2026-06-24-colombia-vs-dr-congo"  # id uses canonical name
 
 
-# --- Provider con sesión falsa ---------------------------------------------
+# --- Provider with a fake session -------------------------------------------
 
 
 class _FakeResponse:
@@ -183,11 +182,11 @@ def test_get_schedule_sends_token_and_hits_competition() -> None:
 
 
 def test_get_schedule_skips_undetermined_knockout_slots() -> None:
-    # Las 32 llaves de eliminatoria llegan con equipos `None` hasta resolverse:
-    # se descartan (el bracket lo reconstruye el pipeline desde grupos + Annex C).
+    # All 32 knockout ties arrive with `None` teams until resolved: they get dropped
+    # (the pipeline rebuilds the bracket from the groups + Annex C).
     session = _FakeSession({"matches": [GROUP_FINISHED, UNDETERMINED_KO, TIMED]})
     matches = _provider(session).get_schedule()
-    assert {m.source_match_id for m in matches} == {"100", "300"}  # sin el 400
+    assert {m.source_match_id for m in matches} == {"100", "300"}  # 400 excluded
 
 
 def test_get_finished_filters_status_and_since() -> None:
@@ -196,8 +195,8 @@ def test_get_finished_filters_status_and_since() -> None:
     assert sorted(m.source_match_id for m in finished) == [
         "100",
         "200",
-    ]  # solo FINISHED
+    ]  # FINISHED only
     after = _provider(
         _FakeSession({"matches": [GROUP_FINISHED, KO_PENALTIES]})
     ).get_finished_results(since=datetime(2026, 7, 1, tzinfo=timezone.utc))
-    assert [m.source_match_id for m in after] == ["200"]  # since filtra por kickoff
+    assert [m.source_match_id for m in after] == ["200"]  # since filters on kickoff

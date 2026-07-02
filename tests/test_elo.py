@@ -1,4 +1,4 @@
-"""Tests del Elo dinámico (TDD)."""
+"""Tests for dynamic Elo (TDD)."""
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ def _hm(
 def test_goal_margin_draw_or_one_goal_is_one() -> None:
     assert goal_margin_multiplier(0, GM) == 1.0
     assert goal_margin_multiplier(1, GM) == 1.0
-    assert goal_margin_multiplier(-1, GM) == 1.0  # usa |margen|
+    assert goal_margin_multiplier(-1, GM) == 1.0  # uses |margin|
 
 
 def test_goal_margin_two_goals() -> None:
@@ -63,7 +63,7 @@ def test_expected_score_is_symmetric() -> None:
 
 
 def test_expected_score_strong_favorite() -> None:
-    # +400 Elo -> ~0.91 esperado.
+    # +400 Elo -> ~0.91 expected.
     assert expected_score(1800.0, 1400.0, home_advantage=0.0) > 0.9
 
 
@@ -73,7 +73,7 @@ def test_recency_weight_at_reference_is_one() -> None:
 
 
 def test_recency_weight_at_half_life_is_about_half() -> None:
-    # ~18 meses antes de la referencia -> ~0.5.
+    # ~18 months before the reference -> ~0.5.
     w = recency_weight(date(2024, 12, 16), date(2026, 6, 16), half_life_months=18.0)
     assert abs(w - 0.5) < 0.02
 
@@ -104,7 +104,7 @@ def test_classify_importance_unknown_is_default() -> None:
 def test_fit_elo_winner_gains_loser_loses_zero_sum() -> None:
     r = fit_elo([_hm(date(2026, 6, 16), "A", "B", 1, 0)], ELO)
     assert r["A"] > ELO.initial_rating > r["B"]
-    # actualización simétrica: suma constante.
+    # symmetric update: sum stays constant.
     assert abs((r["A"] + r["B"]) - 2 * ELO.initial_rating) < 1e-9
 
 
@@ -118,8 +118,8 @@ def test_fit_elo_is_order_independent_and_deterministic() -> None:
 
 
 def test_fit_elo_order_independent_with_duplicate_date_teams() -> None:
-    # Misma fecha+equipos, marcadores distintos (ocurre en martj42): el orden de entrada
-    # NO debe cambiar el resultado (el marcador desempata la clave de orden).
+    # Same date+teams, different scores (happens in martj42): input order must NOT
+    # change the result (the score breaks the tie in the sort key).
     a = _hm(date(1974, 2, 17), "Tahiti", "New Caledonia", 2, 1)
     b = _hm(date(1974, 2, 17), "Tahiti", "New Caledonia", 1, 2)
     assert fit_elo([a, b], ELO) == fit_elo([b, a], ELO)
@@ -139,8 +139,8 @@ def test_fit_elo_old_match_moves_less_than_recent() -> None:
 
 
 def test_fit_elo_home_advantage_reduces_gain_on_a_win() -> None:
-    # Mismo 1-0: en casa el esperado era mayor, así que la subida es menor que
-    # en cancha neutral.
+    # Same 1-0: at home the expected score was higher, so the gain is smaller
+    # than on neutral ground.
     at_home = fit_elo([_hm(date(2026, 6, 16), "A", "B", 1, 0, neutral=False)], ELO)
     neutral = fit_elo([_hm(date(2026, 6, 16), "A", "B", 1, 0, neutral=True)], ELO)
     assert (at_home["A"] - ELO.initial_rating) < (neutral["A"] - ELO.initial_rating)

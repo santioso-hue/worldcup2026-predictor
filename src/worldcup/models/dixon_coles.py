@@ -1,9 +1,9 @@
-"""Modelo Dixon-Coles: Elo -> goles esperados -> matriz de marcadores corregida.
+"""Dixon-Coles model: Elo -> expected goals -> corrected scoreline matrix.
 
-Mapea la diferencia de Elo (ajustada por localía) a ``λ_home``/``λ_away``, construye la
-matriz Poisson independiente y aplica la corrección de marcador bajo de Dixon-Coles
-(parámetro ``ρ``). La pmf de Poisson se calcula con numpy + stdlib (no scipy para una
-pmf de pocos puntos).
+Maps the Elo difference (adjusted for home advantage) to ``λ_home``/``λ_away``,
+builds the independent Poisson matrix, and applies the Dixon-Coles low-score
+correction (``ρ`` parameter). The Poisson pmf is computed with numpy + stdlib
+(scipy would be overkill for a handful of points).
 """
 
 from __future__ import annotations
@@ -18,19 +18,19 @@ from .base import MatchModel
 
 
 def _poisson_pmf(lam: float, n: int) -> np.ndarray:
-    """Vector ``[P(0), …, P(n-1)]`` de una Poisson(``lam``) (numpy + stdlib)."""
+    """``[P(0), …, P(n-1)]`` vector for a Poisson(``lam``) (numpy + stdlib)."""
     return np.array([exp(-lam) * lam**k / factorial(k) for k in range(n)])
 
 
 class DixonColesModel(MatchModel):
-    """Modelo de partido Dixon-Coles (primario).
+    """Dixon-Coles match model (primary).
 
     Parameters
     ----------
     elo_cfg:
-        Config Elo: ``base_lambda``, ``elo_per_goal_denominator``, ``lambda_min/max``.
+        Elo config: ``base_lambda``, ``elo_per_goal_denominator``, ``lambda_min/max``.
     dc_cfg:
-        Config Dixon-Coles: ``rho`` y ``max_goals``.
+        Dixon-Coles config: ``rho`` and ``max_goals``.
     """
 
     def __init__(self, elo_cfg: EloConfig, dc_cfg: DixonColesConfig) -> None:
@@ -44,9 +44,9 @@ class DixonColesModel(MatchModel):
     def expected_goals(
         self, rating_home: float, rating_away: float, home_advantage: float = 0.0
     ) -> tuple[float, float]:
-        """Goles esperados ``(λ_home, λ_away)`` desde la diferencia de Elo.
+        """Expected goals ``(λ_home, λ_away)`` from the Elo difference.
 
-        Diferencia ajustada por localía ``d = (R_home + HA) − R_away``;
+        Home-advantage-adjusted difference ``d = (R_home + HA) − R_away``;
         ``λ_home = clip(base + d/denom)``, ``λ_away = clip(base − d/denom)``.
         """
         diff = (rating_home + home_advantage) - rating_away
@@ -60,20 +60,20 @@ class DixonColesModel(MatchModel):
     def score_matrix(
         self, rating_home: float, rating_away: float, home_advantage: float = 0.0
     ) -> np.ndarray:
-        """Matriz ``(max_goals+1)²`` de P(local=i, visita=j), normalizada a 1."""
+        """``(max_goals+1)²`` matrix of P(home=i, away=j), normalized to 1."""
         lam_home, lam_away = self.expected_goals(
             rating_home, rating_away, home_advantage
         )
         n = self._max_goals + 1
-        p_home = _poisson_pmf(lam_home, n)  # P(local marca i)
-        p_away = _poisson_pmf(lam_away, n)  # P(visita marca j)
-        matrix = np.outer(p_home, p_away)  # Poisson independiente
+        p_home = _poisson_pmf(lam_home, n)  # P(home scores i)
+        p_away = _poisson_pmf(lam_away, n)  # P(away scores j)
+        matrix = np.outer(p_home, p_away)  # independent Poisson
 
-        # Corrección Dixon-Coles en las 4 celdas de marcador bajo.
+        # Dixon-Coles correction on the 4 low-score cells.
         rho = self._rho
         matrix[0, 0] *= 1.0 - lam_home * lam_away * rho
         matrix[0, 1] *= 1.0 + lam_home * rho
         matrix[1, 0] *= 1.0 + lam_away * rho
         matrix[1, 1] *= 1.0 - rho
 
-        return matrix / matrix.sum()  # renormaliza (corrección + truncado a max_goals)
+        return matrix / matrix.sum()  # renormalize (correction + max_goals truncation)

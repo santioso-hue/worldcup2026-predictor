@@ -1,4 +1,4 @@
-"""Tests de TournamentState: grupos + locks (group y knockout) desde el schedule."""
+"""Tests for TournamentState: groups + locks (group and knockout) from the schedule."""
 
 from __future__ import annotations
 
@@ -74,7 +74,7 @@ def test_locks_finished_knockout_with_winner() -> None:
         ),
     ]
     state = build_state(fx, {"X": 1500.0, "Y": 1500.0})
-    assert state.locked_knockout[frozenset(("X", "Y"))] == "X"  # ganó por penales
+    assert state.locked_knockout[frozenset(("X", "Y"))] == "X"  # won on penalties
 
 
 def test_winner_of_uses_phase_priority() -> None:
@@ -107,14 +107,14 @@ def test_winner_of_uses_phase_priority() -> None:
 
 
 def test_winner_of_raises_on_unresolved_knockout() -> None:
-    # KO "finalizado" empatado a 90' sin prórroga/penales (dato corrupto) -> fail loud.
+    # KO "finished" drawn at 90' with no ET/penalties (corrupt data) -> fail loud.
     drawn = _nm("X", "Y", "Round of 16", MatchStatus.FINISHED, ft_home=1, ft_away=1)
     with pytest.raises(ValueError):
         _winner_of(drawn)
 
 
 def test_winner_of_raises_on_incomplete_phase() -> None:
-    # Penales con un solo lado (dato parcial) -> no fabricar ganador, fallar.
+    # Penalties with only one side recorded (partial data) -> don't guess, fail.
     partial = _nm(
         "X",
         "Y",

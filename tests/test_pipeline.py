@@ -1,4 +1,4 @@
-"""Tests del pipeline: núcleo puro (run_pipeline, predict_match) + helpers de I/O."""
+"""Pipeline tests: pure core (run_pipeline, predict_match) + I/O helpers."""
 
 from __future__ import annotations
 
@@ -75,26 +75,26 @@ def test_run_pipeline_sums_to_one_and_is_deterministic() -> None:
     r2, _ = run_pipeline(fx, [], _HISTORY, CFG, ANNEX, runs=100, seed=7)
     champion = sum(p["champion"] for p in r1.probabilities.values())
     assert abs(champion - 1.0) < 1e-9
-    assert r1.probabilities == r2.probabilities  # determinista por semilla
+    assert r1.probabilities == r2.probabilities  # deterministic given the seed
 
 
 def test_run_pipeline_reconcile_drops_suspicious_before_build_state() -> None:
-    # KO finalizado en empate sin resolución es sospechoso: reconcile lo descarta, así
-    # build_state nunca intenta bloquearlo (lo que dispararía _winner_of). Si NO se
-    # descartara, run_pipeline lanzaría. Fija el hilo reconcile -> build_state.
+    # A finished KO match tied with no resolution is suspicious: reconcile drops it,
+    # so build_state never tries to lock it in (which would trigger _winner_of). If it
+    # weren't dropped, run_pipeline would raise. Pins the reconcile -> build_state wire.
     suspicious = _nm(
         "A1", "B1", "Round of 16", MatchStatus.FINISHED, ft_home=1, ft_away=1
     )
     result, reconciled = run_pipeline(
         _backbone() + [suspicious], [], _HISTORY, CFG, ANNEX, runs=50, seed=1
     )
-    assert result.anomalies  # registró la anomalía
-    assert suspicious not in reconciled  # descartado antes de build_state
+    assert result.anomalies  # logged the anomaly
+    assert suspicious not in reconciled  # dropped before build_state
 
 
 def test_run_pipeline_excludes_knockout_slot_labels() -> None:
-    # Las llaves KO del backbone traen etiquetas de slot ("2A", "1B"), no selecciones;
-    # no deben colarse como equipos en la salida (solo los 48 de fase de grupos).
+    # The backbone's KO slots carry placeholder labels ("2A", "1B"), not actual teams;
+    # they must not leak into the output as teams (only the 48 group-stage ones).
     ko_slots = [
         _nm("2A", "1B", "Round of 16", MatchStatus.SCHEDULED),
         _nm("1C", "2D", "Round of 16", MatchStatus.SCHEDULED),
@@ -136,32 +136,32 @@ def test_write_and_load_probabilities_roundtrip(tmp_path: Path) -> None:
     }
     write_probabilities(probs, tmp_path, "20260620t1200")
     assert load_latest_probabilities(tmp_path) == probs
-    assert load_latest_probabilities(tmp_path / "nope") is None  # sin puntero -> None
+    assert load_latest_probabilities(tmp_path / "nope") is None  # no pointer -> None
 
 
 def test_write_probabilities_is_byte_deterministic(tmp_path: Path) -> None:
-    # El artefacto JSON debe ser byte-estable e independiente del orden de inserción
-    # (PYTHONHASHSEED): el replay y el dashboard lo consumen. sort_keys lo garantiza.
+    # The JSON artifact must be byte-stable and independent of insertion order
+    # (PYTHONHASHSEED): the replay and dashboard consume it. sort_keys guarantees it.
     probs_a = {"Zambia": {"champion": 0.1}, "Brazil": {"champion": 0.2}}
-    probs_b = {"Brazil": {"champion": 0.2}, "Zambia": {"champion": 0.1}}  # inverso
+    probs_b = {"Brazil": {"champion": 0.2}, "Zambia": {"champion": 0.1}}  # reversed
     text_a = write_probabilities(
         probs_a, tmp_path / "a", "20260101t0000", update_pointer=False
     ).read_text()
     text_b = write_probabilities(
         probs_b, tmp_path / "b", "20260101t0000", update_pointer=False
     ).read_text()
-    assert text_a == text_b  # mismos bytes pese a distinto orden de inserción
-    assert text_a.index('"Brazil"') < text_a.index('"Zambia"')  # claves ordenadas
+    assert text_a == text_b  # same bytes despite different insertion order
+    assert text_a.index('"Brazil"') < text_a.index('"Zambia"')  # sorted keys
 
 
 def test_write_probabilities_can_skip_pointer(tmp_path: Path) -> None:
     probs = {"A1": {"champion": 0.5}}
-    # update_pointer=False (replay/baseline): escribe el JSON pero no mueve latest.json.
+    # update_pointer=False (replay/baseline): writes JSON but doesn't move latest.json.
     write_probabilities(probs, tmp_path, "20260101t0000", update_pointer=False)
     assert load_latest_probabilities(tmp_path) is None
     write_probabilities(
         probs, tmp_path, "20260101t0000"
-    )  # el default sí mueve el puntero
+    )  # the default does move the pointer
     assert load_latest_probabilities(tmp_path) == probs
 
 
@@ -181,12 +181,12 @@ def test_load_latest_run_roundtrip(tmp_path: Path) -> None:
     assert run.timestamp == "20260620t1200"
     assert run.groups == groups
     assert run.probabilities == probs
-    assert load_latest_run(tmp_path / "nope") is None  # sin puntero -> None
+    assert load_latest_run(tmp_path / "nope") is None  # no pointer -> None
 
 
 def test_run_pipeline_output_feeds_dashboard_prep(tmp_path: Path) -> None:
-    # Contrato del dashboard: la salida real (groups+probabilities) fluye por
-    # write -> load_latest_run -> prepare_group_table / prepare_team_detail sin romper.
+    # Dashboard contract: the real output (groups+probabilities) flows through
+    # write -> load_latest_run -> prepare_group_table / prepare_team_detail intact.
     from worldcup.viz.charts import prepare_group_table, prepare_team_detail
 
     result, _ = run_pipeline(_backbone(), [], _HISTORY, CFG, ANNEX, runs=20, seed=2)
@@ -201,8 +201,8 @@ def test_run_pipeline_output_feeds_dashboard_prep(tmp_path: Path) -> None:
 
 
 def test_run_pipeline_history_cutoff_excludes_in_tournament() -> None:
-    # El baseline excluye resultados en/posteriores al cutoff (torneo en curso):
-    # quitar la goleada del torneo baja el rating de A1.
+    # The baseline excludes results on/after the cutoff (in-progress tournament):
+    # dropping the tournament blowout lowers A1's rating.
     pre = HistoricalMatch(
         date=date(2025, 1, 1),
         home_team="A1",

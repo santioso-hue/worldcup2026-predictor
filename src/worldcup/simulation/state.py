@@ -1,15 +1,16 @@
-"""Estado real del torneo: del schedule + snapshot live a las entradas del Monte Carlo.
+"""Tournament state: schedule + live snapshot to Monte Carlo inputs.
 
-``build_state`` toma los fixtures del **backbone** (``stage`` ``"Group A"`` y rondas KO)
-ya superpuestos con los resultados live, más los ratings Elo, y produce
-un :class:`TournamentState`: los 12 grupos (claves de una letra ``A``…``L``, como el
-bracket/Annex C), y los resultados YA bloqueados de grupo y de eliminatoria. El Monte
-Carlo solo simula lo pendiente, condicionado a esos locks (reconditioning live).
+``build_state`` takes the **backbone** fixtures (``stage`` ``"Group A"`` and KO rounds)
+already overlaid with live results, plus Elo ratings, and produces a
+:class:`TournamentState`: the 12 groups (single-letter keys ``A``...``L``, matching the
+bracket/Annex C), and the results already locked in for group and knockout play. The
+Monte Carlo only simulates what's still pending, conditioned on those locks (live
+reconditioning).
 
-Los partidos de eliminatoria se bloquean por **par de equipos** (``frozenset``), no por
-match-id: en eliminatoria directa dos selecciones se cruzan a lo sumo una vez, y la KO
-empieza con la fase de grupos cerrada (bracket determinista), así que el par identifica
-el cruce sin ambigüedad. Un partido sin ``time``/sin marcador no se bloquea.
+Knockout matches lock by **team pair** (``frozenset``), not match-id: in single
+elimination two teams meet at most once, and the KO stage starts only once the group
+stage is closed (deterministic bracket), so the pair identifies the tie unambiguously.
+A match with no ``time``/no score stays unlocked.
 """
 
 from __future__ import annotations
@@ -25,20 +26,21 @@ from .tournament import run_tournament
 
 @dataclass(frozen=True, slots=True)
 class TournamentState:
-    """Estado del torneo listo para el Monte Carlo condicional."""
+    """Tournament state ready for the conditional Monte Carlo."""
 
-    groups: dict[str, list[str]]  # "A".."L" -> equipos
+    groups: dict[str, list[str]]  # "A".."L" -> teams
     ratings: dict[str, float]
     locked_group: dict[frozenset[str], PlayedMatch]
-    locked_knockout: dict[frozenset[str], str]  # par -> ganador
+    locked_knockout: dict[frozenset[str], str]  # pair -> winner
 
 
 def _winner_of(match: NormalizedMatch) -> str:
-    """Ganador de un KO FINISHED por fase (penales > prórroga > 90').
+    """Winner of a FINISHED knockout match, by phase (penalties > extra time > 90').
 
-    Falla ruidosamente si no hay un ganador claro (fase incompleta, o un KO "finalizado"
-    empatado sin resolución) en vez de fabricar uno. ``build_state`` asume fixtures ya
-    reconciliados (``clean.reconcile`` descarta lo sospechoso antes de llegar aquí).
+    Fails loudly instead of guessing when there's no clear winner (incomplete phase,
+    or a "finished" KO match that's still drawn). ``build_state`` assumes fixtures
+    have already been reconciled (``clean.reconcile`` drops anything suspicious
+    before it gets here).
     """
     phases = (
         (match.pen_home, match.pen_away),
@@ -47,19 +49,19 @@ def _winner_of(match: NormalizedMatch) -> str:
     )
     for home_score, away_score in phases:
         if home_score is None and away_score is None:
-            continue  # fase no disputada
+            continue  # phase not played
         if home_score is None or away_score is None:
-            raise ValueError(f"fase incompleta en el partido {match.match_id!r}")
+            raise ValueError(f"incomplete phase in match {match.match_id!r}")
         if home_score != away_score:
             return match.home_team if home_score > away_score else match.away_team
-    raise ValueError(f"eliminatoria finalizada sin ganador en {match.match_id!r}")
+    raise ValueError(f"knockout match finished with no winner: {match.match_id!r}")
 
 
 def build_state(
     fixtures: list[NormalizedMatch], ratings: dict[str, float]
 ) -> TournamentState:
-    """Construye el :class:`TournamentState` desde los fixtures del backbone + live."""
-    # group_teams agrupa por la etiqueta de stage ("Group A"); re-llaveamos a la letra.
+    """Build the :class:`TournamentState` from backbone fixtures + live data."""
+    # group_teams groups by the stage label ("Group A"); we re-key to the letter.
     groups = {
         stage.split()[-1]: teams for stage, teams in group_teams(fixtures).items()
     }
@@ -90,7 +92,7 @@ def run_from_state(
     elo_denominator: float = 400.0,
     host_advantage: dict[str, float] | None = None,
 ) -> dict[str, dict[str, float]]:
-    """Corre el Monte Carlo condicional a partir de un :class:`TournamentState`."""
+    """Run the conditional Monte Carlo from a :class:`TournamentState`."""
     return run_tournament(
         state.groups,
         state.ratings,

@@ -1,23 +1,23 @@
-# Pipeline reproducible de 1 comando.
+# One-command reproducible pipeline.
 .PHONY: setup run refresh watch snapshot test lint fmt clean
 
 VENV   := .venv
-PYTHON ?= python3      # intérprete base (>=3.11); override: make setup PYTHON=python3.11
+PYTHON ?= python3      # base interpreter (>=3.11); override: make setup PYTHON=python3.11
 PY     := $(VENV)/bin/python
 PIP    := $(VENV)/bin/pip
 BIN    := $(VENV)/bin
 
-setup:  ## crea venv e instala deps (pyproject.toml)
+setup:  ## create venv and install deps (pyproject.toml)
 	$(PYTHON) -m venv $(VENV)
 	$(PIP) install -U pip
 	$(PIP) install -e ".[dev]"
 
-run:  ## pipeline completo en modo live: download -> recondiciona -> simula -> figuras
+run:  ## full pipeline in live mode: download -> recondition -> simulate -> figures
 	$(PY) scripts/run_pipeline.py --config config/config.yaml
 
-refresh: run  ## re-simula con los últimos resultados (modo live; alias de run)
+refresh: run  ## re-simulate with the latest results (live mode; alias for run)
 
-watch:  ## loop: re-corre cada N segundos mientras hay partidos (uso durante el torneo)
+watch:  ## loop: re-run every N seconds while matches are on (use during the tournament)
 	$(PY) scripts/run_pipeline.py --config config/config.yaml --watch --interval 600
 
 test:  ## pytest
@@ -32,6 +32,6 @@ fmt:  ## black + ruff --fix
 	$(BIN)/black src tests scripts app
 	$(BIN)/ruff check --fix src tests scripts app
 
-clean:  ## borra venv y cachés (NUNCA borra data/raw)
+clean:  ## remove venv and caches (NEVER touches data/raw)
 	rm -rf $(VENV) .pytest_cache .mypy_cache .ruff_cache
 	find . -type d -name __pycache__ -prune -exec rm -rf {} +

@@ -1,7 +1,8 @@
-"""Exportación de figuras a PNG determinista en ``outputs/figures/``.
+"""Deterministic PNG export to ``outputs/figures/``.
 
-Fija el tamaño en píxeles desde un ``ExportSpec`` (1080×1920 / 1920×1080), backend Agg
-(headless). El nombre es determinista (``<name>.png``). matplotlib en import perezoso.
+Sets pixel size from an ``ExportSpec`` (1080x1920 / 1920x1080), Agg backend
+(headless). Output name is deterministic (``<name>.png``). matplotlib is imported
+lazily.
 """
 
 from __future__ import annotations
@@ -26,16 +27,16 @@ def save_figure(
     *,
     outdir: Path | str = _DEFAULT_OUTDIR,
 ) -> Path:
-    """Guarda ``fig`` como ``<outdir>/<name>.png`` al tamaño en píxeles de ``spec``.
+    """Save ``fig`` as ``<outdir>/<name>.png`` at ``spec``'s pixel size.
 
-    El tamaño resultante es ``width_px × height_px`` (figsize en pulgadas × dpi).
+    Resulting size is ``width_px x height_px`` (figsize in inches x dpi).
     """
     from matplotlib.backends.backend_agg import FigureCanvasAgg
 
     out = Path(outdir)
     out.mkdir(parents=True, exist_ok=True)
     fig.set_size_inches(spec.width_px / spec.dpi, spec.height_px / spec.dpi)
-    FigureCanvasAgg(fig)  # backend headless explícito
+    FigureCanvasAgg(fig)  # explicit headless backend
     path = out / f"{name}.png"
     fig.savefig(path, dpi=spec.dpi, facecolor=fig.get_facecolor())
     return path
@@ -51,9 +52,9 @@ def save_animation(
     fmt: str = "mp4",
     outdir: Path | str = _DEFAULT_VIDEO_OUTDIR,
 ) -> Path:
-    """Anima ``figure`` (``update(i)`` dibuja el frame ``i``) y la guarda como video.
+    """Animate ``figure`` (``update(i)`` draws frame ``i``) and save it as a video.
 
-    ``fmt='mp4'`` usa ffmpeg; ``fmt='gif'`` usa Pillow (sin dependencia externa).
+    ``fmt='mp4'`` uses ffmpeg; ``fmt='gif'`` uses Pillow (no external dependency).
     """
     from matplotlib.animation import (
         AbstractMovieWriter,
@@ -71,11 +72,11 @@ def save_animation(
         writer = FFMpegWriter(fps=fps)
         ext = "mp4"
     else:
-        raise ValueError(f"formato no admitido: {fmt!r}")
+        raise ValueError(f"unsupported format: {fmt!r}")
 
     out = Path(outdir)
     out.mkdir(parents=True, exist_ok=True)
-    FigureCanvasAgg(figure)  # backend headless explícito
+    FigureCanvasAgg(figure)  # explicit headless backend
     animation = FuncAnimation(figure, update, frames=frames)
     path = out / f"{name}.{ext}"
     animation.save(path, writer=writer)

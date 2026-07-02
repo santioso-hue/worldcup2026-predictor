@@ -1,10 +1,10 @@
-"""Histórico internacional (martj42/international_results): descarga + parseo.
+"""International match history (martj42/international_results): download + parsing.
 
-``parse_results_csv`` es **puro** (stdlib ``csv`` sobre un string, sin pandas) y produce
-:class:`HistoricalMatch` — la base del ajuste Elo (features/elo.py). ``fetch_martj42``
-hace el I/O (descarga y cachea el CSV en ``data/raw/``).
+``parse_results_csv`` is **pure** (stdlib ``csv`` over a string, no pandas) and
+produces :class:`HistoricalMatch` — the basis for the Elo fit (features/elo.py).
+``fetch_martj42`` does the I/O (downloads and caches the CSV in ``data/raw/``).
 
-Columnas VERIFICADAS de ``results.csv``:
+VERIFIED columns of ``results.csv``:
 ``date, home_team, away_team, home_score, away_score, tournament, city, country,
 neutral``.
 """
@@ -20,7 +20,7 @@ from pathlib import Path
 
 @dataclass(frozen=True, slots=True)
 class HistoricalMatch:
-    """Un partido internacional histórico (solo los campos que usa el Elo)."""
+    """A historical international match (only the fields the Elo model uses)."""
 
     date: date
     home_team: str
@@ -32,10 +32,10 @@ class HistoricalMatch:
 
 
 def parse_results_csv(text: str) -> list[HistoricalMatch]:
-    """Parsea el CSV de martj42 a :class:`HistoricalMatch` (función pura).
+    """Parse martj42's CSV into :class:`HistoricalMatch` (pure function).
 
-    Las filas sin marcador entero (no disputadas / datos incompletos) se omiten: no son
-    útiles para el Elo. ``neutral`` se interpreta de ``"TRUE"``/``"FALSE"``
+    Rows without an integer score (not played / incomplete data) are dropped: they're
+    no use to the Elo fit. ``neutral`` is parsed from ``"TRUE"``/``"FALSE"``
     (case-insensitive).
     """
     matches: list[HistoricalMatch] = []
@@ -45,7 +45,7 @@ def parse_results_csv(text: str) -> list[HistoricalMatch]:
             home_score = int(row["home_score"])
             away_score = int(row["away_score"])
         except (ValueError, TypeError, KeyError):
-            continue  # fila sin marcador numérico -> no usable para Elo
+            continue  # no numeric score -> unusable for Elo
         matches.append(
             HistoricalMatch(
                 date=date.fromisoformat(row["date"]),
@@ -63,12 +63,12 @@ def parse_results_csv(text: str) -> list[HistoricalMatch]:
 def fetch_martj42(
     url: str, dest: Path | str, *, timeout: float = 60.0, force: bool = False
 ) -> Path:
-    """Descarga el CSV de martj42 y lo cachea en ``dest`` (I/O; ``requests`` perezoso).
+    """Download martj42's CSV and cache it at ``dest`` (I/O; lazy ``requests`` import).
 
-    Idempotente salvo ``force``: si ``dest`` ya existe y no se fuerza, no re-descarga.
-    Las corridas live hacia adelante fuerzan el refresco (el Elo debe absorber los
-    últimos resultados, no quedar congelado en una caché vieja); el replay
-    (``--snapshot``) usa la copia cacheada (reproduce dada esa misma caché).
+    Idempotent unless ``force``: if ``dest`` already exists and force isn't set, skips
+    the download. Live forward-looking runs force a refresh (the Elo fit needs the
+    latest results, not a stale cache); replay runs (``--snapshot``) use the cached
+    copy so they reproduce against that same cache.
     """
     import requests
 

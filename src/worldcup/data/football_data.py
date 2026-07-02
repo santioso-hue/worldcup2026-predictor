@@ -1,18 +1,20 @@
-"""Cliente football-data.org (v4) — proveedor LIVE gratuito (cubre el Mundial).
+"""football-data.org (v4) client -- free LIVE provider (covers the World Cup).
 
-Implementa :class:`~worldcup.data.live_results.LiveResultsProvider`.
-:func:`parse_footballdata_match` es **puro**; :class:`FootballDataProvider` hace el I/O
-HTTP tras una sesión inyectable (tests sin red). El plan free cubre ``WC`` y no está
-limitado por temporada (a diferencia de API-Football). Auth: header ``X-Auth-Token``.
+Implements :class:`~worldcup.data.live_results.LiveResultsProvider`.
+:func:`parse_footballdata_match` is **pure**; :class:`FootballDataProvider` does the
+HTTP I/O behind an injectable session (tests run without network). The free plan
+covers ``WC`` and isn't season-limited (unlike API-Football). Auth: ``X-Auth-Token``
+header.
 
-Esquema v4: ``GET /competitions/{code}/matches`` -> ``{matches: [...]}``; cada match
-trae ``id``, ``utcDate``, ``status``, ``stage``, ``group``, los equipos y
+v4 schema: ``GET /competitions/{code}/matches`` -> ``{matches: [...]}``; each match
+carries ``id``, ``utcDate``, ``status``, ``stage``, ``group``, the teams, and
 ``score.{winner, duration, fullTime, halfTime}``.
 
-Penales: v4 NO desglosa la tanda y pliega la prórroga en ``fullTime``. Si hay ganador
-con ``fullTime`` empatado (penales), codificamos ``pen_*`` (1,0)/(0,1) con el ganador y
-reflejamos ``et_* = ft_*`` (empate tras prórroga). El ``et`` no es decorativo: sin él,
-``validate_match`` marcaría "penales sin prórroga" y ``reconcile`` descartaría la llave.
+Penalties: v4 does NOT break out the shootout and folds extra time into ``fullTime``.
+When there's a winner but ``fullTime`` is level (penalties), we encode ``pen_*`` as
+(1,0)/(0,1) for the winner and mirror ``et_* = ft_*`` (draw after extra time). The
+``et`` mirroring isn't decorative: without it, ``validate_match`` would flag "penalties
+without extra time" and ``reconcile`` would drop the tie.
 """
 
 from __future__ import annotations
@@ -42,7 +44,7 @@ _KO_STAGE = {
 
 
 def _iso_to_utc(value: str) -> datetime:
-    """Parsea un timestamp ISO-8601 (acepta sufijo ``Z``) y lo normaliza a UTC."""
+    """Parse an ISO-8601 timestamp (accepts a ``Z`` suffix) and normalize to UTC."""
     dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
@@ -54,19 +56,19 @@ def _opt_int(value: Any) -> int | None:
 
 
 def _stage_label(stage: str, group: str | None) -> str:
-    """Stage de football-data al rótulo del proyecto ('Group A' / 'Round of 16')."""
+    """Map a football-data stage to the project's label ('Group A' / 'Round of 16')."""
     if stage == "GROUP_STAGE" and group:
         return "Group " + group.split("_")[-1]
     return _KO_STAGE.get(stage, stage.replace("_", " ").title())
 
 
 def _is_determined(raw: dict) -> bool:
-    """¿El partido tiene ambos equipos definidos? (puro, sin I/O).
+    """Does the match have both teams set? (pure, no I/O)
 
-    v4 devuelve las 32 llaves de eliminatoria con ``homeTeam.name=None`` hasta que se
-    resuelven (son slots del bracket pendientes). El pipeline reconstruye el bracket
-    desde los grupos + Annex C, así que esos placeholders no aportan nada y romperían
-    ``make_match_id`` (slug de ``None``). Los descartamos en la frontera del proveedor.
+    v4 returns all 32 knockout ties with ``homeTeam.name=None`` until they're
+    resolved -- they're pending bracket slots. The pipeline rebuilds the bracket from
+    the groups + Annex C, so these placeholders add nothing and would break
+    ``make_match_id`` (slugging ``None``). We drop them at the provider boundary.
     """
     return (
         raw.get("homeTeam", {}).get("name") is not None
@@ -77,17 +79,18 @@ def _is_determined(raw: dict) -> bool:
 def parse_footballdata_match(
     raw: dict, fetched_at: datetime | None = None
 ) -> NormalizedMatch:
-    """Convierte un match de football-data.org v4 a :class:`NormalizedMatch` (puro).
+    """Convert a football-data.org v4 match to :class:`NormalizedMatch` (pure).
 
-    El ``match_id`` se deriva de la fecha UTC del kickoff + equipos (mismo ancla que el
-    backbone openfootball, para unir feeds). En un KO por penales se codifican
-    ``pen_*`` desde ``score.winner`` y se refleja ``et_* = ft_*`` (ver módulo).
+    ``match_id`` is derived from the UTC kickoff date + teams (same anchor as the
+    openfootball backbone, so feeds can be joined). For a penalty-decided knockout,
+    ``pen_*`` is encoded from ``score.winner`` and ``et_* = ft_*`` is mirrored (see
+    module docstring).
     """
     score = raw.get("score") or {}
     full_time = score.get("fullTime") or {}
     half_time = score.get("halfTime") or {}
-    # Canonicalizamos a los nombres de martj42 ANTES de derivar el match_id, para que
-    # el id, reconcile, los grupos y el lookup de Elo compartan una sola identidad.
+    # Canonicalize to martj42 names BEFORE deriving match_id, so the id, reconcile,
+    # groups, and Elo lookup all share one identity.
     home = canonical_footballdata_team(raw["homeTeam"]["name"])
     away = canonical_footballdata_team(raw["awayTeam"]["name"])
     kickoff = _iso_to_utc(raw["utcDate"])
@@ -104,10 +107,11 @@ def parse_footballdata_match(
         and ft_home is not None
         and ft_home == ft_away
     ):
-        # v4 pliega la prórroga en fullTime: empate (ft) con ganador => penales tras
-        # una prórroga también empatada. Reflejamos et = ft además de pen_*, para que
-        # validate_match lo lea como "empate resuelto por penales"; sin el et, la regla
-        # "penales sin prórroga" lo haría sospechoso y reconcile lo descartaría.
+        # v4 folds extra time into fullTime: a level score (ft) with a winner means
+        # penalties after extra time that was also level. We mirror et = ft alongside
+        # pen_*, so validate_match reads it as "draw resolved by penalties"; without
+        # et, the "penalties without extra time" rule would flag it and reconcile
+        # would drop it.
         et_home, et_away = ft_home, ft_away
         pen_home, pen_away = (1, 0) if winner == "HOME_TEAM" else (0, 1)
 
@@ -151,20 +155,20 @@ class _HttpSession(Protocol):
 
 
 class FootballDataProvider(LiveResultsProvider):
-    """Cliente HTTP de football-data.org v4 tras la interfaz estable.
+    """HTTP client for football-data.org v4 behind the stable interface.
 
     Parameters
     ----------
     token:
-        Clave (de ``FOOTBALL_DATA_TOKEN``); header ``X-Auth-Token``.
+        API key (from ``FOOTBALL_DATA_TOKEN``); sent as the ``X-Auth-Token`` header.
     base_url:
-        Base de la API (``https://api.football-data.org/v4``).
+        API base (``https://api.football-data.org/v4``).
     competition_code:
-        Código de competición (``WC`` para el Mundial).
+        Competition code (``WC`` for the World Cup).
     session:
-        Sesión HTTP inyectable (tests). ``None`` -> ``requests.Session`` perezoso.
+        Injectable HTTP session (tests). ``None`` -> lazily built ``requests.Session``.
     timeout:
-        Timeout por request en segundos.
+        Per-request timeout in seconds.
     """
 
     def __init__(
@@ -188,13 +192,13 @@ class FootballDataProvider(LiveResultsProvider):
 
     def _session_or_default(self) -> _HttpSession:
         if self._session is None:
-            import requests  # import perezoso: el módulo no depende de requests
+            import requests  # lazy import: the module has no hard requests dependency
 
             self._session = requests.Session()
         return self._session
 
     def _fetch_matches(self, params: dict[str, Any]) -> list[dict]:
-        """GET /competitions/{code}/matches; los errores HTTP (4xx/5xx) abortan."""
+        """GET /competitions/{code}/matches; HTTP errors (4xx/5xx) abort."""
         session = self._session_or_default()
         url = f"{self._base_url}/competitions/{self._competition}/matches"
         headers = {"X-Auth-Token": self._token}
@@ -204,7 +208,7 @@ class FootballDataProvider(LiveResultsProvider):
         return matches
 
     def _parse_determined(self, params: dict[str, Any]) -> list[NormalizedMatch]:
-        """GET + parse, omitiendo fixtures sin equipos definidos (slots pendientes)."""
+        """GET + parse, skipping fixtures with undetermined teams (pending slots)."""
         return [
             parse_footballdata_match(m)
             for m in self._fetch_matches(params)
@@ -220,7 +224,7 @@ class FootballDataProvider(LiveResultsProvider):
     def get_finished_results(
         self, since: datetime | None = None
     ) -> list[NormalizedMatch]:
-        # `since` filtra por kickoff_utc (hora de inicio), no por la de finalización.
+        # `since` filters on kickoff_utc (start time), not finish time.
         out: list[NormalizedMatch] = []
         for match in self._parse_determined({"status": "FINISHED"}):
             if match.status is not MatchStatus.FINISHED:

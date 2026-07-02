@@ -1,4 +1,4 @@
-"""Tests del parser del histórico martj42 (stdlib csv, sin pandas)."""
+"""Tests for the martj42 history parser (stdlib csv, no pandas)."""
 
 from __future__ import annotations
 
@@ -33,6 +33,6 @@ def test_neutral_flag_parsed() -> None:
 
 
 def test_rows_without_integer_scores_are_skipped() -> None:
-    # Filas sin marcador numérico no son útiles para Elo: se omiten (no se cuelan).
+    # Rows without a numeric score are no use to Elo: they get dropped, not smuggled in.
     csv_with_blank = CSV + "2030-01-01,A,B,,,Friendly,X,Y,FALSE\n"
     assert len(parse_results_csv(csv_with_blank)) == 2
