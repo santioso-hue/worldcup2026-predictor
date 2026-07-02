@@ -2,9 +2,11 @@
 
 Just Streamlit glue; the testable logic lives in ``worldcup.pipeline``/``viz``.
 "Re-simulate" triggers the pipeline CLI (subprocess), reusing the single
-orchestration path. The "Upcoming matches" panel predicts each unplayed
-fixture live, reusing ``predict_fixture`` (via ``outcome_from_ratings``) and
-fitting Elo only once.
+orchestration path. The "Knockout bracket" panel renders the mirrored bracket
+from the persisted ``run.bracket`` artifact: finished ties show the score,
+scheduled ties predict the advance probability live (reusing
+``knockout_advance_probability`` via the cached ``_predict_card`` path), and
+TBD slots show empty boxes.
 Run: ``streamlit run app/dashboard.py``.
 """
 
@@ -19,13 +21,18 @@ import streamlit as st
 
 from worldcup.config import Config, load_config
 from worldcup.data.historical import parse_results_csv
-from worldcup.data.schedule import is_knockout_stage, is_predictable
 from worldcup.features.elo import fit_elo
 from worldcup.pipeline import (
     RunArtifact,
     knockout_advance_probability,
     load_latest_run,
     outcome_from_ratings,
+)
+from worldcup.simulation.bracket import FINAL_MATCH, KNOCKOUT_BRACKET
+from worldcup.viz.bracket import (
+    BracketMatch,
+    prepare_bracket_mirrored,
+    render_bracket_mirrored,
 )
 from worldcup.viz.charts import (
     prepare_champion_ranking,
@@ -34,7 +41,6 @@ from worldcup.viz.charts import (
 )
 
 _ROOT = Path(__file__).resolve().parents[1]
-_ACCENT = "#185FA5"
 
 
 def _config() -> Config:
@@ -76,66 +82,6 @@ def _predict_card(
     return card
 
 
-def _bar_html(p_home: float, p_draw: float, p_away: float) -> str:
-    """Stacked 1X2 bar (home in accent color, draw and away in grays)."""
-    return (
-        '<div style="display:flex;height:8px;border-radius:999px;overflow:hidden;'
-        'margin:6px 0;">'
-        f'<div style="width:{p_home:.0%};background:{_ACCENT};"></div>'
-        f'<div style="width:{p_draw:.0%};background:#888780;"></div>'
-        f'<div style="width:{p_away:.0%};background:#B4B2A9;"></div></div>'
-    )
-
-
-def _predicted_card_html(
-    stage: str, fecha: str, home: str, away: str, card: dict[str, float]
-) -> str:
-    """Match card with 1X2, favored side highlighted, and advance prob if knockout."""
-    home_fav = card["home"] >= card["away"] and card["home"] >= card["draw"]
-    away_fav = card["away"] > card["home"] and card["away"] >= card["draw"]
-    home_style = f"color:{_ACCENT};font-weight:600;" if home_fav else ""
-    away_style = f"color:{_ACCENT};font-weight:600;" if away_fav else ""
-    advance = ""
-    if "advance" in card:
-        home_adv = card["advance"]
-        if home_adv >= 0.5:
-            leader, p_adv = home, home_adv
-        else:
-            leader, p_adv = away, 1.0 - home_adv
-        advance = (
-            '<div style="font-size:13px;color:#555;border-top:1px solid #eee;'
-            'padding-top:6px;margin-top:6px;">Advances: '
-            f"<b>{leader} {p_adv:.0%}</b></div>"
-        )
-    return (
-        '<div style="border:1px solid #e6e6e6;border-radius:12px;padding:14px 16px;'
-        'margin-bottom:12px;">'
-        '<div style="display:flex;justify-content:space-between;font-size:12px;'
-        f'color:#777;"><span>{stage}</span><span>{fecha}</span></div>'
-        '<div style="display:flex;justify-content:space-between;font-size:15px;'
-        f'margin:8px 0;"><span style="{home_style}">{home}</span>'
-        f'<span style="{away_style}">{away}</span></div>'
-        f"{_bar_html(card['home'], card['draw'], card['away'])}"
-        '<div style="display:flex;justify-content:space-between;font-size:12px;'
-        f'color:#555;"><span>{card["home"]:.0%}</span>'
-        f'<span>Draw {card["draw"]:.0%}</span><span>{card["away"]:.0%}</span></div>'
-        f"{advance}</div>"
-    )
-
-
-def _pending_card_html(stage: str, fecha: str) -> str:
-    """Card for a fixture not yet defined (can't predict TBD vs TBD)."""
-    return (
-        '<div style="border:1px solid #e6e6e6;border-radius:12px;padding:14px 16px;'
-        'margin-bottom:12px;background:#fafafa;color:#999;">'
-        '<div style="display:flex;justify-content:space-between;font-size:12px;">'
-        f"<span>{stage}</span><span>{fecha}</span></div>"
-        '<div style="font-size:13px;margin-top:10px;">'
-        "Waiting on earlier results</div>"
-        "</div>"
-    )
-
-
 def _host_for(home: str, away: str, hosts: set[str]) -> str | None:
     """The match's host team, or ``None``. If both are hosts it cancels out
     (neutral), matching how net host advantage works in the tournament sim."""
@@ -146,32 +92,109 @@ def _host_for(home: str, away: str, hosts: set[str]) -> str | None:
     return None
 
 
+def _advance_label(home: str, away: str, p_home_adv: float) -> str:
+    """Advance annotation naming the favored side with its own probability."""
+    if p_home_adv >= 0.5:
+        leader, p_adv = home, p_home_adv
+    else:
+        leader, p_adv = away, 1.0 - p_home_adv
+    return f"{leader} {p_adv:.0%}"
+
+
+def _bracket_round_order() -> list[list[int]]:
+    """Match numbers per round, ordered depth-first from the final (skip 103).
+
+    Walking ``KNOCKOUT_BRACKET`` depth-first from ``FINAL_MATCH`` and
+    collecting leaves per depth gives each round in an order where the first
+    half of the R32 list feeds the left half of the mirrored bracket and the
+    second half feeds the right half (the leaf order defines the halves that
+    :func:`worldcup.viz.bracket.prepare_bracket_mirrored` splits on).
+    """
+    rounds_by_depth: dict[int, list[int]] = {}
+
+    def walk(match_id: int, depth: int) -> None:
+        slot_a, slot_b = KNOCKOUT_BRACKET[match_id]
+        children: list[int] = []
+        for kind, ref in (slot_a, slot_b):
+            if kind in ("MW", "ML") and ref != 103:
+                assert isinstance(ref, int)  # "MW"/"ML" refs are match ids
+                children.append(ref)
+        if not children:
+            rounds_by_depth.setdefault(depth, []).append(match_id)
+            return
+        for child in children:
+            walk(child, depth + 1)
+        rounds_by_depth.setdefault(depth, []).append(match_id)
+
+    walk(FINAL_MATCH, 0)
+    return [rounds_by_depth[d] for d in sorted(rounds_by_depth, reverse=True)]
+
+
+@st.cache_data(show_spinner=False)
+def _bracket_rows(
+    results_csv: str, ref_iso: str, bracket: dict[str, dict]
+) -> dict[int, dict]:
+    """Precompute the annotated ``BracketMatch`` fields per match number.
+
+    Cached on (results, reference date, bracket contents) so the (uncached)
+    figure build downstream stays cheap. ``BracketMatch``/``Figure`` objects
+    aren't hashable by ``st.cache_data``, so this returns plain dict rows and
+    the figure is assembled uncached from them.
+    """
+    config = _config()
+    hosts = set(config.simulation.hosts)
+    rows: dict[int, dict] = {}
+    for match_str, tie in bracket.items():
+        match_id = int(match_str)
+        home, away = tie["home"], tie["away"]
+        status = tie["status"]
+        if status == "finished":
+            rows[match_id] = {
+                "home": home,
+                "away": away,
+                "winner": tie["winner"],
+                "annotation": f"{tie['ft_home']}–{tie['ft_away']}",
+                "highlight": tie["winner"],
+            }
+        elif status == "scheduled" and home is not None and away is not None:
+            host = _host_for(home, away, hosts)
+            card = _predict_card(home, away, host, True, ref_iso, results_csv)
+            p_home_adv = card["advance"]
+            leader = home if p_home_adv >= 0.5 else away
+            rows[match_id] = {
+                "home": home,
+                "away": away,
+                "winner": None,
+                "annotation": _advance_label(home, away, p_home_adv),
+                "highlight": leader,
+            }
+        else:
+            rows[match_id] = {
+                "home": None,
+                "away": None,
+                "winner": None,
+                "annotation": None,
+                "highlight": None,
+            }
+    return rows
+
+
 def _match_predictor_section(config: Config, run: RunArtifact) -> None:
-    """Upcoming-matches panel: predicts each unplayed fixture live."""
-    st.subheader("Upcoming matches")
-    if not run.fixtures:
-        st.info("No matches left to play.")
+    """Knockout bracket panel: mirrored bracket with live advance probabilities."""
+    st.subheader("Knockout bracket")
+    if not run.bracket:
+        st.info("This run predates the bracket artifact — re-run the pipeline.")
         return
     results_csv = str(_ROOT / config.paths.data_raw / "results.csv")
-    known = _known_teams(results_csv)
-    hosts = set(config.simulation.hosts)
     ref_iso = date.today().isoformat()
-    cols = st.columns(2)
-    for index, fixture in enumerate(run.fixtures):
-        home, away, stage = fixture["home"], fixture["away"], fixture["stage"]
-        fecha = fixture["kickoff"][:10]
-        with cols[index % 2]:
-            if not is_predictable(home, away, known):
-                st.markdown(_pending_card_html(stage, fecha), unsafe_allow_html=True)
-                continue
-            host = _host_for(home, away, hosts)
-            card = _predict_card(
-                home, away, host, is_knockout_stage(stage), ref_iso, results_csv
-            )
-            st.markdown(
-                _predicted_card_html(stage, fecha, home, away, card),
-                unsafe_allow_html=True,
-            )
+    rows = _bracket_rows(results_csv, ref_iso, run.bracket)
+    rounds = [
+        [BracketMatch(**rows[match_id]) for match_id in match_ids]
+        for match_ids in _bracket_round_order()
+    ]
+    positioned = prepare_bracket_mirrored(rounds)
+    fig = render_bracket_mirrored(positioned, title="Knockout bracket")
+    st.pyplot(fig)
 
 
 def _rerun_pipeline() -> subprocess.CompletedProcess[str]:
