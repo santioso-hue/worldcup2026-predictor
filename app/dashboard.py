@@ -12,29 +12,34 @@ Run: ``streamlit run app/dashboard.py``.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from datetime import date
 from pathlib import Path
 
-import streamlit as st
+# Deployment shim: Streamlit Cloud runs this file directly without an
+# editable install of `worldcup`, so put `src/` on the path before importing.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from worldcup.config import Config, load_config
-from worldcup.data.historical import parse_results_csv
-from worldcup.features.elo import fit_elo
-from worldcup.pipeline import (
+import streamlit as st  # noqa: E402
+
+from worldcup.config import Config, load_config  # noqa: E402
+from worldcup.data.historical import parse_results_csv  # noqa: E402
+from worldcup.features.elo import fit_elo  # noqa: E402
+from worldcup.pipeline import (  # noqa: E402
     RunArtifact,
     knockout_advance_probability,
     load_latest_run,
     outcome_from_ratings,
 )
-from worldcup.simulation.bracket import FINAL_MATCH, KNOCKOUT_BRACKET
-from worldcup.viz.bracket import (
+from worldcup.simulation.bracket import FINAL_MATCH, KNOCKOUT_BRACKET  # noqa: E402
+from worldcup.viz.bracket import (  # noqa: E402
     BracketMatch,
     prepare_bracket_mirrored,
     render_bracket_mirrored,
 )
-from worldcup.viz.charts import (
+from worldcup.viz.charts import (  # noqa: E402
     prepare_champion_ranking,
     prepare_group_table,
     prepare_team_detail,
@@ -217,7 +222,7 @@ def main() -> None:
     title_col.title("World Cup 2026 Predictor")
     if run is not None:
         title_col.caption(f"Updated {run.timestamp}")
-    if button_col.button("Re-simulate"):
+    if not os.environ.get("WC_PUBLIC_DEMO") and button_col.button("Re-simulate"):
         with st.spinner("Re-simulating…"):
             result = _rerun_pipeline()
         if result.returncode == 0:

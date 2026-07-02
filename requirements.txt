@@ -1,0 +1,12 @@
+numpy
+pandas
+pyarrow
+scipy
+scikit-learn
+pydantic
+pyyaml
+typer
+requests
+matplotlib
+plotly
+streamlit
