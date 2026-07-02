@@ -17,15 +17,22 @@ worth caching ``score_matrix`` per matchup (future work).
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from itertools import combinations
+from typing import TYPE_CHECKING
 
 import numpy as np
 
+from ..data.live_results import NormalizedMatch
+from ..data.schedule import is_knockout_stage
 from ..models.base import MatchModel
 from ..rng import spawn_rngs
 from .bracket import KNOCKOUT_BRACKET, assign_best_thirds
 from .group_stage import PlayedMatch, TeamStanding, rank_thirds, standings
 from .match import simulate_match
+
+if TYPE_CHECKING:
+    from .state import TournamentState
 
 # Rounds in order of depth. "advance" = qualify for the Round of 32.
 ROUNDS = (
@@ -184,6 +191,176 @@ def _simulate_once(
             reached[winner] = "final"
     reached[match_winner[104]] = "champion"
     return reached
+
+
+# --- Deterministic bracket resolution (no simulation, real results only) ----
+
+# Round label by match-number range, for slots with no joined fixture yet.
+_ROUND_LABELS: tuple[tuple[range, str], ...] = (
+    (range(73, 89), "Round of 32"),
+    (range(89, 97), "Round of 16"),
+    (range(97, 101), "Quarter-finals"),
+    (range(101, 103), "Semi-finals"),
+    (range(103, 104), "Third place"),
+    (range(104, 105), "Final"),
+)
+
+
+def _round_label(match_id: int) -> str | None:
+    """Round label for ``match_id``, by the ranges in ``_ROUND_LABELS``."""
+    for span, label in _ROUND_LABELS:
+        if match_id in span:
+            return label
+    return None
+
+
+@dataclass(frozen=True, slots=True)
+class ResolvedTie:
+    """One knockout slot's real-world state: decided, scheduled, or unresolved.
+
+    ``home``/``away`` are ``None`` when the slot's team isn't determined yet.
+    ``status`` is ``"finished"`` (locked result), ``"scheduled"`` (both teams
+    known, not yet decided) or ``"tbd"`` (at least one team unknown).
+    """
+
+    home: str | None
+    away: str | None
+    status: str
+    ft_home: int | None
+    ft_away: int | None
+    winner: str | None
+    kickoff: str | None
+    stage: str | None
+
+
+def resolve_bracket(
+    state: TournamentState,
+    annex_c: dict[frozenset[str], dict[str, str]],
+    fixtures: list[NormalizedMatch],
+) -> dict[int, ResolvedTie]:
+    """Resolve the real knockout bracket from locked results only (RNG-free).
+
+    Mirrors the ``_simulate_once`` recipe (group standings -> winners/runners
+    -> best thirds -> knockout slots) but never simulates: a slot with an
+    undetermined input resolves to ``None`` instead of being sampled. Real
+    knockout results come only from ``state.locked_knockout`` (team-pair
+    keyed); a tie with an unknown team, or whose result isn't locked, has no
+    winner.
+
+    Parameters
+    ----------
+    state:
+        Live tournament state (groups, ratings, locked group/knockout results).
+    annex_c:
+        Best-thirds assignment table (:func:`load_annex_c`).
+    fixtures:
+        All fixtures (group + knockout); used to join real scores/kickoffs
+        onto resolved knockout ties via ``frozenset((home, away))``.
+
+    Returns
+    -------
+    dict[int, ResolvedTie]
+        One entry per match in :data:`KNOCKOUT_BRACKET` (73-104, incl. 103).
+    """
+    winners: dict[str, str] = {}
+    runners: dict[str, str] = {}
+    third_of_group: dict[str, TeamStanding] = {}
+    assignment: dict[str, str] = {}
+
+    all_groups_complete = all(
+        frozenset((home, away)) in state.locked_group
+        for teams in state.groups.values()
+        for home, away in combinations(teams, 2)
+    )
+    if all_groups_complete:
+        group_standings = {
+            g: standings(
+                [state.locked_group[frozenset((h, a))] for h, a in combinations(t, 2)],
+                t,
+                state.ratings,
+            )
+            for g, t in state.groups.items()
+        }
+        winners = {g: gs[0].team for g, gs in group_standings.items()}
+        runners = {g: gs[1].team for g, gs in group_standings.items()}
+        third_of_group = {g: gs[2] for g, gs in group_standings.items()}
+        group_of_third = {ts.team: g for g, ts in third_of_group.items()}
+        ranked_thirds = rank_thirds(list(third_of_group.values()), state.ratings)
+        top_thirds = ranked_thirds[:8]
+        qualifying_groups = {group_of_third[ts.team] for ts in top_thirds}
+        assignment = assign_best_thirds(qualifying_groups, annex_c)
+
+    def resolve(slot: tuple[str, object]) -> str | None:
+        kind, ref = slot
+        if kind == "W":
+            return winners.get(str(ref))
+        if kind == "R":
+            return runners.get(str(ref))
+        if kind == "T":
+            group = assignment.get(str(ref))
+            return third_of_group[group].team if group is not None else None
+        assert isinstance(ref, int)  # "MW"/"ML" refs are match ids
+        return match_winner.get(ref) if kind == "MW" else match_loser.get(ref)
+
+    fixture_by_pair = {
+        frozenset((m.home_team, m.away_team)): m
+        for m in fixtures
+        if is_knockout_stage(m.stage)
+    }
+
+    match_winner: dict[int, str | None] = {}
+    match_loser: dict[int, str | None] = {}
+    resolved: dict[int, ResolvedTie] = {}
+    for match_id in sorted(KNOCKOUT_BRACKET):
+        slot_a, slot_b = KNOCKOUT_BRACKET[match_id]
+        home, away = resolve(slot_a), resolve(slot_b)
+
+        locked_winner = (
+            state.locked_knockout.get(frozenset((home, away)))
+            if home is not None and away is not None
+            else None
+        )
+        match_winner[match_id] = locked_winner
+        if locked_winner is not None:
+            match_loser[match_id] = away if locked_winner == home else home
+        else:
+            match_loser[match_id] = None
+
+        resolved[match_id] = _build_tie(
+            home, away, locked_winner, fixture_by_pair, match_id
+        )
+    return resolved
+
+
+def _build_tie(
+    home: str | None,
+    away: str | None,
+    locked_winner: str | None,
+    fixture_by_pair: dict[frozenset[str], NormalizedMatch],
+    match_id: int,
+) -> ResolvedTie:
+    """Join a resolved slot pair against real fixtures/results for one tie."""
+    label = _round_label(match_id)
+    if home is None or away is None:
+        return ResolvedTie(None, None, "tbd", None, None, None, None, label)
+
+    fixture = fixture_by_pair.get(frozenset((home, away)))
+    if fixture is None:
+        return ResolvedTie(
+            home, away, "scheduled", None, None, locked_winner, None, label
+        )
+
+    status = "finished" if fixture.is_finished else "scheduled"
+    return ResolvedTie(
+        home,
+        away,
+        status,
+        fixture.ft_home,
+        fixture.ft_away,
+        locked_winner,
+        fixture.kickoff_utc.isoformat(),
+        fixture.stage,
+    )
 
 
 def run_tournament(
