@@ -3,7 +3,7 @@
 
 VENV   := .venv
 PYTHON ?= python3      # base interpreter (>=3.11); override: make setup PYTHON=python3.11
-PY     := $(VENV)/bin/python
+PY     := PYTHONPATH=src $(VENV)/bin/python
 PIP    := $(VENV)/bin/pip
 BIN    := $(VENV)/bin
 
