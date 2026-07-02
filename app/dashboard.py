@@ -34,11 +34,8 @@ from worldcup.pipeline import (  # noqa: E402
     outcome_from_ratings,
 )
 from worldcup.simulation.bracket import FINAL_MATCH, KNOCKOUT_BRACKET  # noqa: E402
-from worldcup.viz.bracket import (  # noqa: E402
-    BracketMatch,
-    prepare_bracket_mirrored,
-    render_bracket_mirrored,
-)
+from worldcup.viz.bracket import BracketMatch, prepare_bracket_mirrored  # noqa: E402
+from worldcup.viz.bracket_plotly import bracket_plotly_figure  # noqa: E402
 from worldcup.viz.charts import (  # noqa: E402
     prepare_champion_ranking,
     prepare_group_table,
@@ -85,6 +82,23 @@ def _predict_card(
             home, away, ratings, config, host=host
         )
     return card
+
+
+def _eliminated(probabilities: dict[str, dict[str, float]]) -> set[str]:
+    """Teams with zero title probability — knocked out (or never advanced)."""
+    return {t for t, p in probabilities.items() if p.get("champion", 0.0) == 0.0}
+
+
+def _fmt_prob(p: float) -> str:
+    """One-decimal percentage, flooring tiny nonzero values to ``"<0.1%"``.
+
+    A live team with a vanishingly small title chance still rounds to
+    ``"0.0%"`` at one decimal, which reads as eliminated; ``"<0.1%"``
+    communicates "still alive, just very unlikely" instead.
+    """
+    if 0.0 < p < 0.001:
+        return "<0.1%"
+    return f"{p:.1%}"
 
 
 def _host_for(home: str, away: str, hosts: set[str]) -> str | None:
@@ -135,6 +149,24 @@ def _bracket_round_order() -> list[list[int]]:
     return [rounds_by_depth[d] for d in sorted(rounds_by_depth, reverse=True)]
 
 
+def _finished_hover(tie: dict) -> str:
+    """Hover text for a decided tie: stage and final score."""
+    stage, home, away = tie["stage"], tie["home"], tie["away"]
+    return f"{stage} — final: {home} {tie['ft_home']}–{tie['ft_away']} {away}"
+
+
+def _scheduled_hover(tie: dict, card: dict[str, float], label: str) -> str:
+    """Hover text for an undecided tie: stage, kickoff date, 1X2, advance label."""
+    stage, home, away = tie["stage"], tie["home"], tie["away"]
+    kickoff = tie["kickoff"]
+    return (
+        f"{stage} — {kickoff[:10]}<br>"
+        f"{home} {card['home']:.0%} · draw {card['draw']:.0%} · "
+        f"{away} {card['away']:.0%}<br>"
+        f"advances: {label}"
+    )
+
+
 @st.cache_data(show_spinner=False)
 def _bracket_rows(
     results_csv: str, ref_iso: str, bracket: dict[str, dict]
@@ -144,7 +176,10 @@ def _bracket_rows(
     Cached on (results, reference date, bracket contents) so the (uncached)
     figure build downstream stays cheap. ``BracketMatch``/``Figure`` objects
     aren't hashable by ``st.cache_data``, so this returns plain dict rows and
-    the figure is assembled uncached from them.
+    the figure is assembled uncached from them. Each row also carries a
+    ``hover`` string (``None`` for TBD ties) built from the same
+    ``_predict_card`` call used for the advance label, so the dashboard
+    doesn't recompute the 1X2 separately for the tooltip.
     """
     config = _config()
     hosts = set(config.simulation.hosts)
@@ -160,18 +195,21 @@ def _bracket_rows(
                 "winner": tie["winner"],
                 "annotation": f"{tie['ft_home']}–{tie['ft_away']}",
                 "highlight": tie["winner"],
+                "hover": _finished_hover(tie),
             }
         elif status == "scheduled" and home is not None and away is not None:
             host = _host_for(home, away, hosts)
             card = _predict_card(home, away, host, True, ref_iso, results_csv)
             p_home_adv = card["advance"]
             leader = home if p_home_adv >= 0.5 else away
+            label = _advance_label(home, away, p_home_adv)
             rows[match_id] = {
                 "home": home,
                 "away": away,
                 "winner": None,
-                "annotation": _advance_label(home, away, p_home_adv),
+                "annotation": label,
                 "highlight": leader,
+                "hover": _scheduled_hover(tie, card, label),
             }
         else:
             rows[match_id] = {
@@ -180,8 +218,12 @@ def _bracket_rows(
                 "winner": None,
                 "annotation": None,
                 "highlight": None,
+                "hover": None,
             }
     return rows
+
+
+_BRACKET_MATCH_FIELDS = ("home", "away", "winner", "annotation", "highlight")
 
 
 def _match_predictor_section(config: Config, run: RunArtifact) -> None:
@@ -193,13 +235,23 @@ def _match_predictor_section(config: Config, run: RunArtifact) -> None:
     results_csv = str(_ROOT / config.paths.data_raw / "results.csv")
     ref_iso = date.today().isoformat()
     rows = _bracket_rows(results_csv, ref_iso, run.bracket)
+    round_order = _bracket_round_order()
     rounds = [
-        [BracketMatch(**rows[match_id]) for match_id in match_ids]
-        for match_ids in _bracket_round_order()
+        [
+            BracketMatch(**{k: rows[match_id][k] for k in _BRACKET_MATCH_FIELDS})
+            for match_id in match_ids
+        ]
+        for match_ids in round_order
     ]
     positioned = prepare_bracket_mirrored(rounds)
-    fig = render_bracket_mirrored(positioned, title="Knockout bracket")
-    st.pyplot(fig)
+    hover: dict[tuple[int, int], str] = {}
+    for col_idx, match_ids in enumerate(round_order):
+        for row_idx, match_id in enumerate(match_ids):
+            text = rows[match_id]["hover"]
+            if text is not None:
+                hover[(col_idx, row_idx)] = text
+    fig = bracket_plotly_figure(positioned, hover, title="Knockout bracket")
+    st.plotly_chart(fig, use_container_width=True)
 
 
 def _rerun_pipeline() -> subprocess.CompletedProcess[str]:
@@ -236,12 +288,17 @@ def main() -> None:
         return
 
     st.subheader("Championship probability")
-    champion = {team: probs["champion"] for team, probs in run.probabilities.items()}
+    eliminated = _eliminated(run.probabilities)
+    champion = {
+        team: probs["champion"]
+        for team, probs in run.probabilities.items()
+        if team not in eliminated
+    }
     rows = prepare_champion_ranking(champion, top_n=15)
     st.dataframe(
         {
             "Team": [r.team for r in rows],
-            "P(champion)": [f"{r.prob:.1%}" for r in rows],
+            "P(champion)": [_fmt_prob(r.prob) for r in rows],
         },
         hide_index=True,
     )
@@ -266,7 +323,12 @@ def main() -> None:
         st.info("This run has no groups; re-simulate to see them.")
 
     st.subheader("Team detail")
-    team = st.selectbox("Team", sorted(run.probabilities))
+    alive = sorted(t for t in run.probabilities if t not in eliminated)
+    show_eliminated = st.toggle("Show eliminated teams")
+    options = sorted(run.probabilities) if show_eliminated else alive
+    team = st.selectbox("Team", options)
+    if team in eliminated:
+        st.caption("Eliminated")
     detail = prepare_team_detail(run.probabilities, team)
     st.dataframe(
         {

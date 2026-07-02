@@ -21,6 +21,15 @@ def test_dashboard_module_imports() -> None:
     assert not hasattr(module, "_pending_card_html")
 
 
+def test_dashboard_no_longer_uses_matplotlib_bracket_render() -> None:
+    # The bracket panel now renders via plotly; the matplotlib mirrored
+    # renderer and st.pyplot must no longer be referenced anywhere in the
+    # module source (source-grep, like the deleted-helper checks above).
+    source = _APP.read_text()
+    assert "render_bracket_mirrored" not in source
+    assert "st.pyplot" not in source
+
+
 def _load_module(name: str = "wc_dashboard_cards"):  # type: ignore[no-untyped-def]
     spec = importlib.util.spec_from_file_location(name, _APP)
     assert spec is not None and spec.loader is not None
@@ -67,3 +76,29 @@ def test_host_for_cancels_when_both_teams_are_hosts() -> None:
     # Two hosts cancel out (neutral), matching the tournament's net advantage.
     assert module._host_for("United States", "Mexico", hosts) is None
     assert module._host_for("Brazil", "France", hosts) is None
+
+
+def test_eliminated_returns_teams_with_zero_champion_probability() -> None:
+    module = _load_module("wc_dashboard_eliminated")
+    probabilities = {
+        "Argentina": {"champion": 0.12},
+        "Nigeria": {"champion": 0.0},
+        "Bosnia": {"champion": 0.0},
+        "Brazil": {"champion": 0.08},
+    }
+    assert module._eliminated(probabilities) == {"Nigeria", "Bosnia"}
+
+
+def test_eliminated_treats_missing_champion_key_as_eliminated() -> None:
+    module = _load_module("wc_dashboard_eliminated_missing_key")
+    probabilities = {"Argentina": {"champion": 0.12}, "Nigeria": {}}
+    assert module._eliminated(probabilities) == {"Nigeria"}
+
+
+def test_fmt_prob_floors_tiny_nonzero_values() -> None:
+    module = _load_module("wc_dashboard_fmt_prob")
+    assert module._fmt_prob(0.0) == "0.0%"
+    assert module._fmt_prob(0.0001) == "<0.1%"
+    assert module._fmt_prob(0.0009) == "<0.1%"
+    assert module._fmt_prob(0.001) == "0.1%"
+    assert module._fmt_prob(0.123) == "12.3%"
