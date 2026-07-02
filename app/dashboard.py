@@ -89,6 +89,36 @@ def _eliminated(probabilities: dict[str, dict[str, float]]) -> set[str]:
     return {t for t, p in probabilities.items() if p.get("champion", 0.0) == 0.0}
 
 
+def _state_strip_stats(
+    probabilities: dict[str, dict[str, float]], bracket: dict[str, dict]
+) -> dict[str, str]:
+    """The "right now" thesis: favorite, teams alive, ties played, next kickoff.
+
+    Pure summary of the loaded artifact, formatted as display strings for the
+    top-of-page metric row. ``bracket`` maps match number (as a string key,
+    matching the persisted artifact) to a tie dict with ``status`` and
+    ``kickoff`` fields.
+    """
+    eliminated = _eliminated(probabilities)
+    alive = {t: p for t, p in probabilities.items() if t not in eliminated}
+    if alive:
+        favorite_team = max(alive, key=lambda t: alive[t].get("champion", 0.0))
+        favorite = f"{favorite_team} ({_fmt_prob(alive[favorite_team]['champion'])})"
+    else:
+        favorite = "—"
+    played = sum(1 for tie in bracket.values() if tie["status"] == "finished")
+    kickoffs = [
+        tie["kickoff"] for tie in bracket.values() if tie["status"] == "scheduled"
+    ]
+    next_kickoff = min(kickoffs)[:10] if kickoffs else "—"
+    return {
+        "favorite": favorite,
+        "alive": str(48 - len(eliminated)),
+        "played": str(played),
+        "next_kickoff": next_kickoff,
+    }
+
+
 def _fmt_prob(p: float) -> str:
     """One-decimal percentage, flooring tiny nonzero values to ``"<0.1%"``.
 
@@ -266,14 +296,16 @@ def _rerun_pipeline() -> subprocess.CompletedProcess[str]:
 
 
 def main() -> None:
-    st.set_page_config(page_title="World Cup 2026 Predictor", layout="wide")
+    st.set_page_config(page_title="World Cup 2026 predictor", page_icon="⚽")
     config = _config()
     run = load_latest_run(_ROOT / config.paths.data_processed)
 
     title_col, button_col = st.columns([4, 1])
-    title_col.title("World Cup 2026 Predictor")
+    title_col.title("World Cup 2026 predictor")
     if run is not None:
-        title_col.caption(f"Updated {run.timestamp}")
+        title_col.caption(
+            f"Updated {run.timestamp} · live model — Elo → Dixon-Coles → Monte Carlo"
+        )
     if not os.environ.get("WC_PUBLIC_DEMO") and button_col.button("Re-simulate"):
         with st.spinner("Re-simulating…"):
             result = _rerun_pipeline()
@@ -287,8 +319,17 @@ def main() -> None:
         st.info("No runs yet. Run the pipeline first (make run).")
         return
 
-    st.subheader("Championship probability")
     eliminated = _eliminated(run.probabilities)
+    stats = _state_strip_stats(run.probabilities, run.bracket)
+    strip_cols = st.columns(4)
+    strip_cols[0].metric("Favorite", stats["favorite"])
+    strip_cols[1].metric("Teams alive", f"{stats['alive']}/48")
+    strip_cols[2].metric("Knockout ties played", f"{stats['played']}/32")
+    strip_cols[3].metric("Next kickoff", stats["next_kickoff"])
+
+    _match_predictor_section(config, run)
+
+    st.subheader("Title odds")
     champion = {
         team: probs["champion"]
         for team, probs in run.probabilities.items()
@@ -298,31 +339,39 @@ def main() -> None:
     st.dataframe(
         {
             "Team": [r.team for r in rows],
-            "P(champion)": [_fmt_prob(r.prob) for r in rows],
+            "P(title)": [r.prob for r in rows],
+        },
+        column_config={
+            "P(title)": st.column_config.ProgressColumn(
+                "P(title)", format="percent", min_value=0.0, max_value=1.0
+            )
         },
         hide_index=True,
     )
 
-    _match_predictor_section(config, run)
+    with st.expander("Group stage results", expanded=False):
+        if run.groups:
+            table = prepare_group_table(run.groups, run.probabilities)
+            group_cols = st.columns(4)
+            for index, (letter, group_rows) in enumerate(sorted(table.items())):
+                col = group_cols[index % 4]
+                col.markdown(f"**Group {letter}**")
+                col.dataframe(
+                    {
+                        "Team": [g.team for g in group_rows],
+                        "P(advance)": [g.p_advance for g in group_rows],
+                    },
+                    column_config={
+                        "P(advance)": st.column_config.ProgressColumn(
+                            "P(advance)", format="percent", min_value=0.0, max_value=1.0
+                        )
+                    },
+                    hide_index=True,
+                )
+        else:
+            st.info("This run has no groups; re-simulate to see them.")
 
-    if run.groups:
-        st.subheader("Group advance probability")
-        table = prepare_group_table(run.groups, run.probabilities)
-        group_cols = st.columns(4)
-        for index, (letter, group_rows) in enumerate(sorted(table.items())):
-            col = group_cols[index % 4]
-            col.markdown(f"**Group {letter}**")
-            col.dataframe(
-                {
-                    "Team": [g.team for g in group_rows],
-                    "P(advance)": [f"{g.p_advance:.0%}" for g in group_rows],
-                },
-                hide_index=True,
-            )
-    else:
-        st.info("This run has no groups; re-simulate to see them.")
-
-    st.subheader("Team detail")
+    st.subheader("Team outlook")
     alive = sorted(t for t in run.probabilities if t not in eliminated)
     show_eliminated = st.toggle("Show eliminated teams")
     options = sorted(run.probabilities) if show_eliminated else alive

@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import importlib.util
+import tomllib
 from pathlib import Path
 
 _APP = Path(__file__).resolve().parents[1] / "app" / "dashboard.py"
+_STREAMLIT_CONFIG = Path(__file__).resolve().parents[1] / ".streamlit" / "config.toml"
 
 
 def test_dashboard_module_imports() -> None:
@@ -102,3 +104,59 @@ def test_fmt_prob_floors_tiny_nonzero_values() -> None:
     assert module._fmt_prob(0.0009) == "<0.1%"
     assert module._fmt_prob(0.001) == "0.1%"
     assert module._fmt_prob(0.123) == "12.3%"
+
+
+def _synthetic_bracket() -> dict[str, dict]:
+    return {
+        "90": {
+            "status": "finished",
+            "kickoff": "2026-07-01T19:00:00+00:00",
+        },
+        "91": {
+            "status": "scheduled",
+            "kickoff": "2026-07-05T23:00:00+00:00",
+        },
+        "92": {
+            "status": "scheduled",
+            "kickoff": "2026-07-03T15:00:00+00:00",
+        },
+        "93": {
+            "status": "tbd",
+            "kickoff": None,
+        },
+    }
+
+
+def test_state_strip_stats_on_synthetic_input() -> None:
+    module = _load_module("wc_dashboard_state_strip")
+    probabilities = {
+        "Argentina": {"champion": 0.30},
+        "Brazil": {"champion": 0.12},
+        "Nigeria": {"champion": 0.0},
+    }
+    stats = module._state_strip_stats(probabilities, _synthetic_bracket())
+    assert stats["favorite"] == "Argentina (30.0%)"
+    assert stats["alive"] == "47"
+    assert stats["played"] == "1"
+    assert stats["next_kickoff"] == "2026-07-03"
+
+
+def test_state_strip_stats_no_scheduled_ties_gives_dash() -> None:
+    module = _load_module("wc_dashboard_state_strip_no_sched")
+    probabilities = {"Argentina": {"champion": 1.0}}
+    bracket = {"90": {"status": "finished", "kickoff": "2026-07-01T19:00:00+00:00"}}
+    stats = module._state_strip_stats(probabilities, bracket)
+    assert stats["next_kickoff"] == "—"
+
+
+def test_state_strip_stats_no_alive_teams_gives_dash_favorite() -> None:
+    module = _load_module("wc_dashboard_state_strip_none_alive")
+    probabilities = {"Argentina": {"champion": 0.0}}
+    stats = module._state_strip_stats(probabilities, {})
+    assert stats["favorite"] == "—"
+
+
+def test_streamlit_config_has_exact_primary_color() -> None:
+    with _STREAMLIT_CONFIG.open("rb") as handle:
+        config = tomllib.load(handle)
+    assert config["theme"]["primaryColor"] == "#185FA5"
