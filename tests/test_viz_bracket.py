@@ -8,6 +8,7 @@ from matplotlib.text import Text
 
 from worldcup.viz.bracket import (
     BracketMatch,
+    _fitted_fontsize,
     prepare_bracket,
     prepare_bracket_mirrored,
     render_bracket,
@@ -164,3 +165,42 @@ def test_render_bracket_mirrored_highlight_and_bold() -> None:
     assert any(t.get_fontweight() in ("bold", 700) for t in team_texts)
     highlighted = [t for t in team_texts if t.get_color() == THEME.accent]
     assert highlighted
+
+
+def test_fitted_fontsize_shrinks_long_names_fits_short() -> None:
+    # Long real-world team names must shrink below the default stamp size...
+    for name in ("Bosnia and Herzegovina", "United States", "Trinidad and Tobago"):
+        size = _fitted_fontsize(name)
+        assert 9 <= size < THEME.stamp_size, (name, size)
+    # ...while a short name keeps the default size.
+    assert _fitted_fontsize("Ghana") == THEME.stamp_size
+
+
+def test_render_bracket_mirrored_fits_long_team_names() -> None:
+    """Every team-name Text artist must fit within the mirrored box width."""
+    from worldcup.viz.bracket import _MIRROR_BOX_W, _estimate_text_width_pt
+
+    rounds = [
+        [
+            BracketMatch("Bosnia and Herzegovina", "United States"),
+            BracketMatch("Trinidad and Tobago", "Ghana"),
+        ],
+        [BracketMatch(None, None)],
+    ]
+    fig = render_bracket_mirrored(prepare_bracket_mirrored(rounds))
+    ax = fig.axes[0]
+    box_w_pt = _MIRROR_BOX_W * 72  # matplotlib figure inches -> points
+    long_names = {
+        "Bosnia and Herzegovina",
+        "United States",
+        "Trinidad and Tobago",
+    }
+    checked = 0
+    for t in ax.findobj(Text):
+        name = t.get_text()
+        if name not in long_names and name != "Ghana":
+            continue
+        est_width = _estimate_text_width_pt(name, float(t.get_fontsize()))
+        assert est_width <= box_w_pt - 4, (name, est_width, box_w_pt)
+        checked += 1
+    assert checked >= 4

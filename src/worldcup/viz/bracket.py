@@ -20,6 +20,47 @@ if TYPE_CHECKING:
 _BOX_W = 0.7
 _BOX_H = 0.7
 
+# Mirrored layout gets its own (wider) box so long team names have room; the
+# single-sided prepare_bracket/render_bracket keep using _BOX_W untouched.
+# Sized so the worst-case real team name ("Bosnia and Herzegovina") still
+# fits at the fontsize floor (see _fitted_fontsize / _MIN_STAMP_SIZE below).
+_MIRROR_BOX_W = 1.8
+_MIRROR_BOX_H = 0.7
+# Column spacing factor: at width 1.8, boxes at consecutive integer columns
+# would overlap (1.8 > 1.0), so mirrored x positions are scaled by this
+# factor to keep columns clear of each other.
+_MIRROR_COL_SPACING = 2.6
+
+_MIN_STAMP_SIZE = 9
+_CHAR_WIDTH_FACTOR = 0.62  # cheap deterministic point-width-per-char estimate
+_TEXT_PADDING_PT = 4.0  # keep some breathing room from the box edge
+
+
+def _estimate_text_width_pt(text: str, fontsize: float) -> float:
+    """Deterministic text-width estimate in points (no bbox measurement)."""
+    return len(text) * fontsize * _CHAR_WIDTH_FACTOR
+
+
+def _fitted_fontsize(
+    name: str,
+    *,
+    box_w_in: float = _MIRROR_BOX_W,
+    max_fontsize: int = 16,
+    min_fontsize: int = _MIN_STAMP_SIZE,
+) -> int:
+    """Largest fontsize (>= floor) whose estimated text width fits the box.
+
+    Uses a cheap, deterministic heuristic (``len(name) * fontsize * 0.62``
+    points) rather than measuring a real text bbox, so results are stable
+    across environments/backends. Falls back to the floor if even that
+    doesn't fit (better a slight overflow than unreadable tiny text).
+    """
+    box_w_pt = box_w_in * 72 - _TEXT_PADDING_PT
+    for fontsize in range(max_fontsize, min_fontsize - 1, -1):
+        if _estimate_text_width_pt(name, fontsize) <= box_w_pt:
+            return fontsize
+    return min_fontsize
+
 
 @dataclass(frozen=True)
 class BracketMatch:
@@ -200,6 +241,16 @@ def render_bracket(
 MIRRORED = ExportSpec(2400, 2000)  # near-square, for the two-sided bracket
 
 
+def _mirror_x(column: int) -> float:
+    """Scale a mirrored-bracket column index into an x position (inches).
+
+    The mirrored box is wider than a single integer column (``_MIRROR_BOX_W``
+    > 1), so columns are spread out by ``_MIRROR_COL_SPACING`` to keep
+    neighboring boxes from touching.
+    """
+    return column * _MIRROR_COL_SPACING
+
+
 def _draw_mirrored_box(
     ax: Axes,
     pm: PositionedMatch,
@@ -210,37 +261,42 @@ def _draw_mirrored_box(
     """Draw one bracket box: names, bold winner, accent highlight, annotation."""
     from matplotlib.patches import Rectangle
 
+    x0 = _mirror_x(pm.column)
     ax.add_patch(
         Rectangle(
-            (pm.column, pm.y),
-            _BOX_W,
-            _BOX_H,
+            (x0, pm.y),
+            _MIRROR_BOX_W,
+            _MIRROR_BOX_H,
             fill=False,
             edgecolor=theme.text_muted,
         )
     )
-    x_text = pm.column + _BOX_W - 0.04 if right_side else pm.column + 0.04
+    x_text = x0 + _MIRROR_BOX_W - 0.04 if right_side else x0 + 0.04
     ha = "right" if right_side else "left"
     for slot, team in enumerate((pm.match.home, pm.match.away)):
         won = team is not None and team == pm.match.winner
         highlighted = team is not None and team == pm.match.highlight
         color = theme.accent if highlighted else theme.text_primary
+        label = team if team is not None else "—"
         ax.text(
             x_text,
-            pm.y + _BOX_H * (0.78 - 0.34 * slot),
-            team if team is not None else "—",
-            fontsize=theme.stamp_size,
+            pm.y + _MIRROR_BOX_H * (0.78 - 0.34 * slot),
+            label,
+            fontsize=_fitted_fontsize(label),
             color=color,
             weight="bold" if won else "normal",
             va="center",
             ha=ha,
         )
     if pm.match.annotation is not None:
+        annotation_size = min(
+            _fitted_fontsize(pm.match.annotation), theme.stamp_size - 6
+        )
         ax.text(
             x_text,
-            pm.y + _BOX_H * 0.14,
+            pm.y + _MIRROR_BOX_H * 0.14,
             pm.match.annotation,
-            fontsize=max(theme.stamp_size - 6, 6),
+            fontsize=max(annotation_size, 6),
             color=theme.text_muted,
             va="center",
             ha=ha,
@@ -294,18 +350,22 @@ def render_bracket_mirrored(
                 children = (prev[half_prev + 2 * j], prev[half_prev + 2 * j + 1])
             else:
                 children = (prev[2 * i], prev[2 * i + 1])
-            x_parent = pm.column + _BOX_W if right_side else pm.column
+            x_pm = _mirror_x(pm.column)
+            x_parent = x_pm + _MIRROR_BOX_W if right_side else x_pm
             for child in children:
                 child_right_side = child.column > _MIRROR_COLUMNS
-                x_child = child.column if child_right_side else child.column + _BOX_W
+                x_child_col = _mirror_x(child.column)
+                x_child = (
+                    x_child_col if child_right_side else x_child_col + _MIRROR_BOX_W
+                )
                 ax.plot(
                     [x_child, x_parent],
-                    [child.y + _BOX_H / 2, pm.y + _BOX_H / 2],
+                    [child.y + _MIRROR_BOX_H / 2, pm.y + _MIRROR_BOX_H / 2],
                     color=theme.text_muted,
                     linewidth=1,
                 )
 
-    ax.set_xlim(-0.2, 8 + _BOX_W + 0.2)
+    ax.set_xlim(-0.2, _mirror_x(8) + _MIRROR_BOX_W + 0.2)
     ax.set_ylim(-0.5, max_y + 1.2)
     ax.axis("off")
     if title is not None:
