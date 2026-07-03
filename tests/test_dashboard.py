@@ -220,14 +220,26 @@ def _synthetic_rows() -> dict[int, dict]:
             "annotation": None,
             "highlight": None,
             "hover": None,
+            "status": "tbd",
+            "kickoff": None,
+            "ft_home": None,
+            "ft_away": None,
+            "pen_home": None,
+            "pen_away": None,
         }
     rows[1] = {
         "home": "Argentina",
         "away": "Nigeria",
         "winner": "Argentina",
-        "annotation": "2–0",
+        "annotation": None,
         "highlight": "Argentina",
         "hover": "Round of 32 — final: Argentina 2–0 Nigeria",
+        "status": "finished",
+        "kickoff": "2026-06-29T19:00:00+00:00",
+        "ft_home": 2,
+        "ft_away": 0,
+        "pen_home": None,
+        "pen_away": None,
     }
     rows[2] = {
         "home": "Brazil",
@@ -237,6 +249,26 @@ def _synthetic_rows() -> dict[int, dict]:
         "highlight": "Brazil",
         "hover": "Round of 32 — 2026-07-05<br>Brazil 55% · draw 20% · "
         "Ghana 25%<br>advances: Brazil 68%",
+        "status": "scheduled",
+        "kickoff": "2026-07-05T19:00:00+00:00",
+        "ft_home": None,
+        "ft_away": None,
+        "pen_home": None,
+        "pen_away": None,
+    }
+    rows[3] = {
+        "home": "Germany",
+        "away": "Paraguay",
+        "winner": "Paraguay",
+        "annotation": None,
+        "highlight": "Paraguay",
+        "hover": "Round of 32 — final: Germany 1–1 (3–4 p) Paraguay",
+        "status": "finished",
+        "kickoff": "2026-06-29T23:00:00+00:00",
+        "ft_home": 1,
+        "ft_away": 1,
+        "pen_home": 3,
+        "pen_away": 4,
     }
     return rows
 
@@ -269,10 +301,22 @@ def test_bracket_html_scheduled_tie_shows_advance_chip() -> None:
     assert 'bkt-chip bkt-chip--advance">Brazil 68%' in html_out
 
 
-def test_bracket_html_finished_tie_shows_score_chip() -> None:
-    module = _load_module("wc_dashboard_bracket_html_score_chip")
+def test_bracket_html_finished_tie_shows_per_team_scores() -> None:
+    # Scoreboard style: each team row carries its own score, winner's in accent.
+    module = _load_module("wc_dashboard_bracket_html_scores")
     html_out = module._bracket_html(_synthetic_rows(), _synthetic_round_order())
-    assert 'bkt-chip bkt-chip--score">2–0' in html_out
+    assert '<span class="bkt-score bkt-score--win">2</span>' in html_out
+    assert '<span class="bkt-score">0</span>' in html_out
+    assert 'bkt-pill">FT</span>' in html_out
+
+
+def test_bracket_html_shootout_shows_per_team_penalties_and_ft_p_pill() -> None:
+    # A shootout tie reads like a scoreboard: "1 (3)" vs "1 (4)", pill "FT (P)".
+    module = _load_module("wc_dashboard_bracket_html_pens")
+    html_out = module._bracket_html(_synthetic_rows(), _synthetic_round_order())
+    assert '<span class="bkt-score">1 (3)</span>' in html_out
+    assert '<span class="bkt-score bkt-score--win">1 (4)</span>' in html_out
+    assert "FT (P)" in html_out
 
 
 def test_bracket_html_green_chip_only_on_scheduled_tie() -> None:
@@ -282,9 +326,9 @@ def test_bracket_html_green_chip_only_on_scheduled_tie() -> None:
     html_out = module._bracket_html(_synthetic_rows(), _synthetic_round_order())
     assert 'bkt-chip bkt-chip--advance">Brazil 68%' in html_out
     assert "#4ADBA0" in html_out
-    score_chip_start = html_out.index('bkt-chip bkt-chip--score">2–0')
-    score_chip_html = html_out[score_chip_start - 40 : score_chip_start]
-    assert "bkt-chip--advance" not in score_chip_html
+    # The advance chip is the only chip left: finished ties carry no chip at all.
+    body = html_out.split("</style>", 1)[1]
+    assert body.count('class="bkt-chip') == 1
 
 
 def test_bracket_html_carries_hover_text_in_title_attribute() -> None:

@@ -265,9 +265,15 @@ def _bracket_rows(
                 "home": home,
                 "away": away,
                 "winner": tie["winner"],
-                "annotation": _score_label(tie),
+                "annotation": None,
                 "highlight": tie["winner"],
                 "hover": _finished_hover(tie),
+                "status": "finished",
+                "kickoff": tie.get("kickoff"),
+                "ft_home": tie["ft_home"],
+                "ft_away": tie["ft_away"],
+                "pen_home": tie.get("pen_home"),
+                "pen_away": tie.get("pen_away"),
             }
         elif status == "scheduled" and home is not None and away is not None:
             host = _host_for(home, away, hosts)
@@ -282,6 +288,12 @@ def _bracket_rows(
                 "annotation": label,
                 "highlight": leader,
                 "hover": _scheduled_hover(tie, card, label),
+                "status": "scheduled",
+                "kickoff": tie.get("kickoff"),
+                "ft_home": None,
+                "ft_away": None,
+                "pen_home": None,
+                "pen_away": None,
             }
         else:
             rows[match_id] = {
@@ -291,6 +303,12 @@ def _bracket_rows(
                 "annotation": None,
                 "highlight": None,
                 "hover": None,
+                "status": "tbd",
+                "kickoff": None,
+                "ft_home": None,
+                "ft_away": None,
+                "pen_home": None,
+                "pen_away": None,
             }
     return rows
 
@@ -303,37 +321,42 @@ _BRACKET_CSS = """
 .bkt-col-label{font-size:10px;letter-spacing:.08em;text-transform:uppercase;
   color:#7C8CA3;text-align:center;height:18px;margin-bottom:4px;}
 .bkt-slot{display:flex;flex-direction:column;align-items:stretch;
-  justify-content:center;padding:0;box-sizing:border-box;}
+  justify-content:center;padding:0;box-sizing:border-box;
+  position:relative;z-index:1;}
 .bkt-slot--r32{height:var(--row);}
 .bkt-slot--r16{height:calc(var(--row) * 2);}
 .bkt-slot--qf{height:calc(var(--row) * 4);}
 .bkt-slot--sf{height:calc(var(--row) * 8);}
 .bkt-slot--final{height:calc(var(--row) * 8);}
-.bkt-card{width:100%;border:1px solid #263447;border-radius:12px;padding:6px 8px;
+.bkt-card{width:100%;border:1px solid #263447;border-radius:10px;padding:5px 8px;
   background:#16202E;min-height:64px;box-sizing:border-box;
   display:flex;flex-direction:column;justify-content:center;
   transition:box-shadow .15s,border-color .15s;}
 .bkt-card:hover{box-shadow:0 2px 10px rgba(91,163,232,.25);border-color:#5BA3E8;}
 .bkt-card--tbd{background:#111927;border-color:#1C2736;}
+.bkt-head{display:flex;justify-content:space-between;align-items:center;
+  font-size:10px;color:#7C8CA3;padding-bottom:3px;margin-bottom:3px;
+  border-bottom:1px solid #1C2736;}
+.bkt-pill{color:#C9D4E3;background:#1E2B3C;padding:1px 5px;border-radius:5px;}
 .bkt-row{display:flex;justify-content:space-between;align-items:center;
   font-size:12px;padding:2px 0;gap:6px;}
 .bkt-team{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#E8EDF4;}
 .bkt-team--win{color:#5BA3E8;font-weight:600;}
 .bkt-team--tbd{color:#566577;}
-.bkt-chip{margin-top:6px;padding-top:6px;border-top:1px solid #1C2736;
-  font-size:10px;text-align:right;}
+.bkt-score{color:#C9D4E3;white-space:nowrap;font-variant-numeric:tabular-nums;}
+.bkt-score--win{color:#5BA3E8;font-weight:600;}
+.bkt-chip{margin-top:4px;font-size:10px;text-align:right;}
 .bkt-chip--advance{color:#4ADBA0;background:rgba(53,194,134,.12);
-  display:inline-block;padding:2px 6px;border-radius:6px;}
-.bkt-chip--score{color:#C9D4E3;background:#1E2B3C;
   display:inline-block;padding:2px 6px;border-radius:6px;}
 .bkt-conn{display:flex;flex-direction:column;flex:0 0 18px;width:18px;}
 .bkt-conn .bkt-col-label{visibility:hidden;}
-.bkt-conn-slot{display:flex;align-items:center;justify-content:center;}
+.bkt-conn-slot{display:flex;align-items:center;justify-content:center;overflow:visible;}
 .bkt-conn-slot--r16{height:calc(var(--row) * 2);}
 .bkt-conn-slot--qf{height:calc(var(--row) * 4);}
 .bkt-conn-slot--sf{height:calc(var(--row) * 8);}
 .bkt-conn-slot--final{height:calc(var(--row) * 8);}
-.bkt-elbow{width:100%;box-sizing:border-box;margin:auto 0;}
+.bkt-elbow{box-sizing:border-box;margin:auto -8px;width:calc(100% + 16px);
+  position:relative;z-index:0;}
 .bkt-elbow--r32{height:var(--row);}
 .bkt-elbow--r16{height:calc(var(--row) * 2);}
 .bkt-elbow--qf{height:calc(var(--row) * 4);}
@@ -354,41 +377,75 @@ _ROUND_LABELS = [
 ]
 
 
-def _bracket_card_html(row: dict) -> str:
-    """One match card: two team rows, optional score/advance chip, hover title."""
-    home, away = row["home"], row["away"]
+def _card_header(row: dict) -> str:
+    """Date on the left, status pill on the right (FT / FT (P) / kickoff time)."""
+    kickoff = row["kickoff"]
+    when = ""
+    if kickoff:
+        stamp = datetime.fromisoformat(kickoff).astimezone(timezone.utc)
+        when = f"{stamp.strftime('%b')} {stamp.day}"
+    if row["status"] == "finished":
+        pill = "FT (P)" if row["pen_home"] is not None else "FT"
+    elif row["status"] == "scheduled" and kickoff:
+        stamp = datetime.fromisoformat(kickoff).astimezone(timezone.utc)
+        pill = f"{stamp.strftime('%H:%M')} UTC"
+    else:
+        pill = ""
+    if not when and not pill:
+        return ""
+    return (
+        f'<div class="bkt-head"><span>{html.escape(when)}</span>'
+        f'<span class="bkt-pill">{html.escape(pill)}</span></div>'
+    )
+
+
+def _team_row(row: dict, side: str) -> str:
+    """One team line, scoreboard style: name left, score (pens) right.
+
+    The winner (or predicted favorite) gets the highlight color; on a decided
+    shootout each side shows its 120' goals plus its penalties, e.g. "1 (4)".
+    """
+    team = row[side]
+    if team is None:
+        return (
+            '<div class="bkt-row"><span class="bkt-team bkt-team--tbd">'
+            "&mdash;</span></div>"
+        )
     winner, highlight = row["winner"], row["highlight"]
-    tbd = home is None or away is None
+    css = "bkt-team bkt-team--win" if team in (winner, highlight) else "bkt-team"
+    ft = row[f"ft_{side}"]
+    pen = row[f"pen_{side}"]
+    score = ""
+    if ft is not None:
+        digits = f"{ft} ({pen})" if pen is not None else str(ft)
+        score_css = "bkt-score bkt-score--win" if team == winner else "bkt-score"
+        score = f'<span class="{score_css}">{digits}</span>'
+    return (
+        f'<div class="bkt-row"><span class="{css}">'
+        f"{html.escape(team)}</span>{score}</div>"
+    )
+
+
+def _bracket_card_html(row: dict) -> str:
+    """One match card: header (date + status), two team/score rows, advance chip."""
+    tbd = row["home"] is None or row["away"] is None
     hover = row["hover"]
     title_attr = ""
     if hover:
         tooltip = html.escape(hover.replace("<br>", "\n"), quote=True)
         title_attr = f' title="{tooltip}"'
 
-    def team_row(team: str | None) -> str:
-        if team is None:
-            return (
-                '<div class="bkt-row"><span class="bkt-team bkt-team--tbd">'
-                "&mdash;</span></div>"
-            )
-        css = "bkt-team bkt-team--win" if team in (winner, highlight) else "bkt-team"
-        return (
-            f'<div class="bkt-row"><span class="{css}">'
-            f"{html.escape(team)}</span></div>"
-        )
-
     chip = ""
     if row["annotation"]:
-        chip_kind = "score" if winner else "advance"
         chip = (
-            f'<div class="bkt-chip bkt-chip--{chip_kind}">'
+            '<div class="bkt-chip bkt-chip--advance">'
             f'{html.escape(row["annotation"])}</div>'
         )
 
     card_css = "bkt-card bkt-card--tbd" if tbd else "bkt-card"
     return (
-        f'<div class="{card_css}"{title_attr}>'
-        f"{team_row(home)}{team_row(away)}{chip}</div>"
+        f'<div class="{card_css}"{title_attr}>{_card_header(row)}'
+        f"{_team_row(row, 'home')}{_team_row(row, 'away')}{chip}</div>"
     )
 
 
