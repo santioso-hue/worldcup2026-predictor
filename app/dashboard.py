@@ -273,21 +273,33 @@ _BRACKET_CSS = """
 .bkt-col{display:flex;flex-direction:column;justify-content:space-around;
   gap:10px;flex:1 1 0;min-width:120px;}
 .bkt-col--final{justify-content:center;}
-.bkt-card{border:1px solid #e6e6e6;border-radius:12px;padding:8px 10px;
-  background:#fff;transition:box-shadow .15s,border-color .15s;}
-.bkt-card:hover{box-shadow:0 2px 8px rgba(24,95,165,.25);border-color:#185FA5;}
-.bkt-card--tbd{background:#fafafa;}
+.bkt-col-label{font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  color:#7C8CA3;text-align:center;margin-bottom:4px;}
+.bkt-card{border:1px solid #263447;border-radius:12px;padding:8px 10px;
+  background:#16202E;transition:box-shadow .15s,border-color .15s;}
+.bkt-card:hover{box-shadow:0 2px 10px rgba(91,163,232,.25);border-color:#5BA3E8;}
+.bkt-card--tbd{background:#111927;border-color:#1C2736;}
 .bkt-row{display:flex;justify-content:space-between;align-items:center;
   font-size:13px;padding:2px 0;gap:6px;}
-.bkt-team{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.bkt-team--win{color:#185FA5;font-weight:600;}
-.bkt-team--tbd{color:#999;}
-.bkt-chip{margin-top:6px;padding-top:6px;border-top:1px solid #eee;
+.bkt-team{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#E8EDF4;}
+.bkt-team--win{color:#5BA3E8;font-weight:600;}
+.bkt-team--tbd{color:#566577;}
+.bkt-chip{margin-top:6px;padding-top:6px;border-top:1px solid #1C2736;
   font-size:11px;text-align:right;}
-.bkt-chip--advance{color:#185FA5;}
-.bkt-chip--score{color:#666;}
+.bkt-chip--advance{color:#4ADBA0;background:rgba(53,194,134,.12);
+  display:inline-block;padding:2px 6px;border-radius:6px;}
+.bkt-chip--score{color:#C9D4E3;background:#1E2B3C;
+  display:inline-block;padding:2px 6px;border-radius:6px;}
 </style>
 """
+
+_ROUND_LABELS = [
+    "ROUND OF 32",
+    "ROUND OF 16",
+    "QUARTER-FINALS",
+    "SEMI-FINALS",
+    "FINAL",
+]
 
 
 def _bracket_card_html(row: dict) -> str:
@@ -341,14 +353,23 @@ def _bracket_html(rows: dict[int, dict], round_order: list[list[int]]) -> str:
     semis, final_round = round_order[:-1], round_order[-1]
     left_halves = [match_ids[: len(match_ids) // 2] for match_ids in semis]
     right_halves = [match_ids[len(match_ids) // 2 :] for match_ids in semis]
+    left_labels = _ROUND_LABELS[:-1]
+    right_labels = list(reversed(left_labels))
 
-    def column(match_ids: list[int], *, extra_css: str = "") -> str:
+    def column(match_ids: list[int], label: str, *, extra_css: str = "") -> str:
         cards = "".join(_bracket_card_html(rows[m]) for m in match_ids)
-        return f'<div class="bkt-col{extra_css}">{cards}</div>'
+        label_div = f'<div class="bkt-col-label">{html.escape(label)}</div>'
+        return f'<div class="bkt-col{extra_css}">{label_div}{cards}</div>'
 
-    columns = [column(half) for half in left_halves]
-    columns.append(column(final_round, extra_css=" bkt-col--final"))
-    columns.extend(column(half) for half in reversed(right_halves))
+    columns = [
+        column(half, label)
+        for half, label in zip(left_halves, left_labels, strict=True)
+    ]
+    columns.append(column(final_round, _ROUND_LABELS[-1], extra_css=" bkt-col--final"))
+    columns.extend(
+        column(half, label)
+        for half, label in zip(reversed(right_halves), right_labels, strict=True)
+    )
 
     return (
         _BRACKET_CSS

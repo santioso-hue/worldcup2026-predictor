@@ -193,7 +193,8 @@ def test_scheduled_hover_handles_none_kickoff() -> None:
 def test_streamlit_config_has_exact_primary_color() -> None:
     with _STREAMLIT_CONFIG.open("rb") as handle:
         config = tomllib.load(handle)
-    assert config["theme"]["primaryColor"] == "#185FA5"
+    assert config["theme"]["base"] == "dark"
+    assert config["theme"]["primaryColor"] == "#5BA3E8"
 
 
 def _synthetic_round_order() -> list[list[int]]:
@@ -272,6 +273,18 @@ def test_bracket_html_finished_tie_shows_score_chip() -> None:
     module = _load_module("wc_dashboard_bracket_html_score_chip")
     html_out = module._bracket_html(_synthetic_rows(), _synthetic_round_order())
     assert 'bkt-chip bkt-chip--score">2–0' in html_out
+
+
+def test_bracket_html_green_chip_only_on_scheduled_tie() -> None:
+    # The advance chip (scheduled tie) is the only green element in the app;
+    # the score chip (finished tie) must not use the green advance class.
+    module = _load_module("wc_dashboard_bracket_html_green_chip")
+    html_out = module._bracket_html(_synthetic_rows(), _synthetic_round_order())
+    assert 'bkt-chip bkt-chip--advance">Brazil 68%' in html_out
+    assert "#4ADBA0" in html_out
+    score_chip_start = html_out.index('bkt-chip bkt-chip--score">2–0')
+    score_chip_html = html_out[score_chip_start - 40 : score_chip_start]
+    assert "bkt-chip--advance" not in score_chip_html
 
 
 def test_bracket_html_carries_hover_text_in_title_attribute() -> None:
