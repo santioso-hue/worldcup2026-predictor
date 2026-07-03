@@ -211,6 +211,16 @@ def test_streamlit_config_has_exact_primary_color() -> None:
         config = tomllib.load(handle)
     assert config["theme"]["base"] == "dark"
     assert config["theme"]["primaryColor"] == "#5BA3E8"
+    assert config["client"]["toolbarMode"] == "minimal"
+
+
+def test_page_css_styles_metrics_like_bracket_cards() -> None:
+    # The state-strip metrics carry the same surface/border as bracket cards,
+    # so the stock widgets and the custom bracket read as one design.
+    module = _load_module("wc_dashboard_page_css")
+    assert 'data-testid="stMetric"' in module._PAGE_CSS
+    assert "background:#16202E" in module._PAGE_CSS
+    assert "border:1px solid #263447" in module._PAGE_CSS
 
 
 def _synthetic_round_order() -> list[list[int]]:

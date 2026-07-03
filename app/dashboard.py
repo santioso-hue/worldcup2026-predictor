@@ -337,6 +337,21 @@ def _bracket_rows(
     return rows
 
 
+# Page chrome, matched to the bracket's design: metric boxes read as cards,
+# section headers use the same muted uppercase label style as the bracket
+# columns, and the default h1 is toned down.
+_PAGE_CSS = """
+<style>
+h1{font-size:1.7rem;padding-bottom:0;}
+h3{font-size:.85rem;text-transform:uppercase;letter-spacing:.08em;
+  color:#7C8CA3;font-weight:600;}
+[data-testid="stMetric"]{background:#16202E;border:1px solid #263447;
+  border-radius:10px;padding:10px 14px;}
+[data-testid="stMetricLabel"] p{font-size:11px;text-transform:uppercase;
+  letter-spacing:.08em;color:#7C8CA3;}
+</style>
+"""
+
 _BRACKET_CSS = """
 <style>
 .bkt-wrap{overflow-x:auto;padding:8px 4px;}
@@ -648,6 +663,7 @@ def main() -> None:
     config = _config()
     run = load_latest_run(_ROOT / config.paths.data_processed)
 
+    st.markdown(_PAGE_CSS, unsafe_allow_html=True)
     title_col, button_col = st.columns([4, 1])
     title_col.title("World Cup 2026 predictor")
     if run is not None:
@@ -736,7 +752,8 @@ def main() -> None:
     )
 
     st.caption(
-        "Elo · Dixon-Coles · conditional Monte Carlo — methodology in the README"
+        "Elo · Dixon-Coles · conditional Monte Carlo — methodology in the "
+        "[README](https://github.com/santioso-hue/worldcup2026-predictor)"
     )
 
 
