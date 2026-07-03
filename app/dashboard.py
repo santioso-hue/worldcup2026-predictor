@@ -268,28 +268,51 @@ def _bracket_rows(
 
 _BRACKET_CSS = """
 <style>
-.bkt-wrap{overflow-x:auto;padding:8px 0;}
-.bkt{display:flex;gap:14px;min-width:1180px;align-items:stretch;}
-.bkt-col{display:flex;flex-direction:column;justify-content:space-around;
-  gap:10px;flex:1 1 0;min-width:120px;}
-.bkt-col--final{justify-content:center;}
+.bkt-wrap{overflow-x:auto;padding:8px 4px;}
+.bkt{--row:84px;display:flex;align-items:stretch;width:100%;min-width:900px;}
+.bkt-col{display:flex;flex-direction:column;flex:1 1 0;min-width:0;width:auto;}
 .bkt-col-label{font-size:10px;letter-spacing:.08em;text-transform:uppercase;
-  color:#7C8CA3;text-align:center;margin-bottom:4px;}
-.bkt-card{border:1px solid #263447;border-radius:12px;padding:8px 10px;
-  background:#16202E;transition:box-shadow .15s,border-color .15s;}
+  color:#7C8CA3;text-align:center;height:18px;margin-bottom:4px;}
+.bkt-slot{display:flex;flex-direction:column;align-items:stretch;
+  justify-content:center;padding:0;box-sizing:border-box;}
+.bkt-slot--r32{height:var(--row);}
+.bkt-slot--r16{height:calc(var(--row) * 2);}
+.bkt-slot--qf{height:calc(var(--row) * 4);}
+.bkt-slot--sf{height:calc(var(--row) * 8);}
+.bkt-slot--final{height:calc(var(--row) * 8);}
+.bkt-card{width:100%;border:1px solid #263447;border-radius:12px;padding:6px 8px;
+  background:#16202E;min-height:64px;box-sizing:border-box;
+  display:flex;flex-direction:column;justify-content:center;
+  transition:box-shadow .15s,border-color .15s;}
 .bkt-card:hover{box-shadow:0 2px 10px rgba(91,163,232,.25);border-color:#5BA3E8;}
 .bkt-card--tbd{background:#111927;border-color:#1C2736;}
 .bkt-row{display:flex;justify-content:space-between;align-items:center;
-  font-size:13px;padding:2px 0;gap:6px;}
+  font-size:12px;padding:2px 0;gap:6px;}
 .bkt-team{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#E8EDF4;}
 .bkt-team--win{color:#5BA3E8;font-weight:600;}
 .bkt-team--tbd{color:#566577;}
 .bkt-chip{margin-top:6px;padding-top:6px;border-top:1px solid #1C2736;
-  font-size:11px;text-align:right;}
+  font-size:10px;text-align:right;}
 .bkt-chip--advance{color:#4ADBA0;background:rgba(53,194,134,.12);
   display:inline-block;padding:2px 6px;border-radius:6px;}
 .bkt-chip--score{color:#C9D4E3;background:#1E2B3C;
   display:inline-block;padding:2px 6px;border-radius:6px;}
+.bkt-conn{display:flex;flex-direction:column;flex:0 0 18px;width:18px;}
+.bkt-conn .bkt-col-label{visibility:hidden;}
+.bkt-conn-slot{display:flex;align-items:center;justify-content:center;}
+.bkt-conn-slot--r16{height:calc(var(--row) * 2);}
+.bkt-conn-slot--qf{height:calc(var(--row) * 4);}
+.bkt-conn-slot--sf{height:calc(var(--row) * 8);}
+.bkt-conn-slot--final{height:calc(var(--row) * 8);}
+.bkt-elbow{width:100%;box-sizing:border-box;margin:auto 0;}
+.bkt-elbow--r32{height:var(--row);}
+.bkt-elbow--r16{height:calc(var(--row) * 2);}
+.bkt-elbow--qf{height:calc(var(--row) * 4);}
+.bkt-elbow--sf{height:calc(var(--row) * 8);}
+.bkt-conn--left .bkt-elbow{border-top:1px solid #263447;
+  border-right:1px solid #263447;border-bottom:1px solid #263447;}
+.bkt-conn--right .bkt-elbow{border-top:1px solid #263447;
+  border-left:1px solid #263447;border-bottom:1px solid #263447;}
 </style>
 """
 
@@ -340,41 +363,128 @@ def _bracket_card_html(row: dict) -> str:
     )
 
 
+# Slot-size CSS suffix per round, outermost (R32) to innermost (Final). A
+# connector between round ``i`` and round ``i+1`` takes its own slot height
+# from the PARENT round's size (so a connector slot equals its parent card's
+# slot) and its elbow height from the CHILD round's size (the elbow spans
+# exactly the distance between the two child centers, i.e. one child slot).
+_SLOT_SIZES = ["r32", "r16", "qf", "sf", "final"]
+
+
+def _slot_html(match_id: int, rows: dict[int, dict], size: str) -> str:
+    """One card wrapped in a fixed-height slot so its center is deterministic."""
+    card = _bracket_card_html(rows[match_id])
+    return f'<div class="bkt-slot bkt-slot--{size}">{card}</div>'
+
+
+def _connector_column_html(
+    count: int, parent_size: str, child_size: str, side: str
+) -> str:
+    """A narrow connector column with ``count`` elbow slots joining two rounds.
+
+    ``side`` is ``"left"`` (elbow opens rightward, ``]``-shaped: top/right/
+    bottom borders) or ``"right"`` (mirrored ``[``-shape: top/left/bottom
+    borders). Each connector slot is sized like the parent round's card slot;
+    the elbow inside it is sized like the child round's card slot (the exact
+    span between two sibling child centers) and centered within the slot.
+    """
+    label_div = '<div class="bkt-col-label">&nbsp;</div>'
+    slot = (
+        f'<div class="bkt-conn-slot bkt-conn-slot--{parent_size}">'
+        f'<div class="bkt-elbow bkt-elbow--{child_size}"></div></div>'
+    )
+    slots = slot * count
+    return f'<div class="bkt-conn bkt-conn--{side}">{label_div}{slots}</div>'
+
+
+def _round_column_html(
+    match_ids: list[int],
+    rows: dict[int, dict],
+    label: str,
+    size: str,
+    *,
+    extra_css: str = "",
+) -> str:
+    """A card column: label header + one ``.bkt-slot`` per match, fixed height."""
+    slots = "".join(_slot_html(m, rows, size) for m in match_ids)
+    label_div = f'<div class="bkt-col-label">{html.escape(label)}</div>'
+    return f'<div class="bkt-col{extra_css}">{label_div}{slots}</div>'
+
+
+def _parent_size_and_count(
+    round_index: int, sizes: list[str], halves: list[list[int]]
+) -> tuple[str, int]:
+    """Size and card count of the round one step closer to the final.
+
+    ``round_index`` indexes into the R32..SF rounds; the parent is the next
+    round in ``sizes``/``halves``, or the Final (a single card) once past SF.
+    """
+    parent_size = sizes[round_index + 1]
+    if round_index + 1 < len(halves):
+        return parent_size, len(halves[round_index + 1])
+    return parent_size, 1
+
+
 def _bracket_html(rows: dict[int, dict], round_order: list[list[int]]) -> str:
-    """Two-sided bracket as linked match cards: 9 flex columns, no images.
+    """Two-sided bracket as linked match cards on a fixed slot grid.
 
     ``round_order`` is ``[R32(16), R16(8), QF(4), SF(2), Final(1)]``; the first
     half of each round's list is the left side of the draw, the second half is
-    the right side (mirrored). Columns run left R32 -> left R16 -> left QF ->
-    left SF -> Final -> right SF -> right QF -> right R16 -> right R32, each
-    ``justify-content:space-around`` so cards center against their feeders —
-    the classic CSS-bracket trick, no absolute positioning or connector math.
+    the right side (mirrored). Every column is a flex column of equal-height
+    ``.bkt-slot`` wrappers sized from the shared ``--row`` variable, so a
+    parent's slot center always equals the midpoint of its two children's
+    centers by construction. Narrow ``.bkt-conn`` columns between each pair of
+    round columns draw the joining elbow lines. Columns run left R32 -> conn
+    -> left R16 -> conn -> left QF -> conn -> left SF -> conn -> Final -> conn
+    -> right SF -> conn -> right QF -> conn -> right R16 -> conn -> right R32.
     """
     semis, final_round = round_order[:-1], round_order[-1]
     left_halves = [match_ids[: len(match_ids) // 2] for match_ids in semis]
     right_halves = [match_ids[len(match_ids) // 2 :] for match_ids in semis]
     left_labels = _ROUND_LABELS[:-1]
     right_labels = list(reversed(left_labels))
+    left_sizes = _SLOT_SIZES[:-1]
+    right_sizes = list(reversed(left_sizes))
 
-    def column(match_ids: list[int], label: str, *, extra_css: str = "") -> str:
-        cards = "".join(_bracket_card_html(rows[m]) for m in match_ids)
-        label_div = f'<div class="bkt-col-label">{html.escape(label)}</div>'
-        return f'<div class="bkt-col{extra_css}">{label_div}{cards}</div>'
+    pieces: list[str] = []
 
-    columns = [
-        column(half, label)
-        for half, label in zip(left_halves, left_labels, strict=True)
-    ]
-    columns.append(column(final_round, _ROUND_LABELS[-1], extra_css=" bkt-col--final"))
-    columns.extend(
-        column(half, label)
-        for half, label in zip(reversed(right_halves), right_labels, strict=True)
+    # Left half: R32 -> R16 -> QF -> SF, connector after each round.
+    for round_index, (half, label, size) in enumerate(
+        zip(left_halves, left_labels, left_sizes, strict=True)
+    ):
+        pieces.append(_round_column_html(half, rows, label, size))
+        parent_size, parent_count = _parent_size_and_count(
+            round_index, _SLOT_SIZES, left_halves
+        )
+        pieces.append(_connector_column_html(parent_count, parent_size, size, "left"))
+
+    pieces.append(
+        _round_column_html(
+            final_round,
+            rows,
+            _ROUND_LABELS[-1],
+            _SLOT_SIZES[-1],
+            extra_css=" bkt-col--final",
+        )
     )
+
+    # Right half: connector -> SF -> connector -> QF -> connector -> R16 ->
+    # connector -> R32 (mirrored order, feeders read right-to-left visually).
+    for round_index in range(len(right_halves) - 1, -1, -1):
+        mirror_index = len(right_halves) - 1 - round_index
+        half = right_halves[round_index]
+        label = right_labels[mirror_index]
+        size = right_sizes[mirror_index]
+        parent_size, parent_count = _parent_size_and_count(
+            round_index, _SLOT_SIZES, right_halves
+        )
+        pieces.append(_connector_column_html(parent_count, parent_size, size, "right"))
+        pieces.append(_round_column_html(half, rows, label, size))
 
     return (
         _BRACKET_CSS
         + '<div class="bkt-wrap"><div class="bkt">'
-        + "".join(columns)
+        + "".join(pieces)
         + "</div></div>"
     )
 

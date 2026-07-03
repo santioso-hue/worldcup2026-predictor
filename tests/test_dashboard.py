@@ -309,3 +309,44 @@ def test_bracket_html_has_one_style_block_scoped_under_bkt() -> None:
     assert html_out.count("<style>") == 1
     assert ".bkt" in html_out
     assert "overflow-x:auto" in html_out
+
+
+def test_bracket_html_has_fixed_row_variable_and_min_height_cards() -> None:
+    # The fixed slot-height rhythm this bracket's alignment depends on: one
+    # shared --row variable, and a card min-height so TBD/finished/scheduled
+    # cards (chip vs no chip) don't drift a slot's content off its center.
+    module = _load_module("wc_dashboard_bracket_html_row_var")
+    html_out = module._bracket_html(_synthetic_rows(), _synthetic_round_order())
+    assert "--row:" in html_out
+    assert "min-height" in html_out
+
+
+def test_bracket_html_slot_counts_per_round_match_8_4_2_1_both_sides() -> None:
+    # Each round column is a flex column of equal-height .bkt-slot wrappers;
+    # left+right together give 16/8/4/2/1 (i.e. 8+8, 4+4, 2+2, 1+1, 1) since
+    # a parent's slot center is the midpoint of its two children's centers
+    # only when both sides carry the same fixed per-round slot count.
+    module = _load_module("wc_dashboard_bracket_html_slot_counts")
+    html_out = module._bracket_html(_synthetic_rows(), _synthetic_round_order())
+    assert html_out.count('class="bkt-slot bkt-slot--r32"') == 16
+    assert html_out.count('class="bkt-slot bkt-slot--r16"') == 8
+    assert html_out.count('class="bkt-slot bkt-slot--qf"') == 4
+    assert html_out.count('class="bkt-slot bkt-slot--sf"') == 2
+    assert html_out.count('class="bkt-slot bkt-slot--final"') == 1
+
+
+def test_bracket_html_has_eight_connector_columns_split_left_and_right() -> None:
+    # 9 card columns (R32,R16,QF,SF,Final,SF,QF,R16,R32) need 8 connector
+    # columns between them, split evenly across the mirrored halves.
+    module = _load_module("wc_dashboard_bracket_html_connector_columns")
+    html_out = module._bracket_html(_synthetic_rows(), _synthetic_round_order())
+    assert html_out.count('class="bkt-conn bkt-conn--left"') == 4
+    assert html_out.count('class="bkt-conn bkt-conn--right"') == 4
+
+
+def test_bracket_html_has_sixteen_elbow_connectors() -> None:
+    # Per side: connectors after R32/R16/QF/SF carry 4+2+1+1 = 8 elbow slots
+    # (one per parent-round card); mirrored on the right gives 16 total.
+    module = _load_module("wc_dashboard_bracket_html_elbow_count")
+    html_out = module._bracket_html(_synthetic_rows(), _synthetic_round_order())
+    assert html_out.count('<div class="bkt-elbow bkt-elbow--') == 16
