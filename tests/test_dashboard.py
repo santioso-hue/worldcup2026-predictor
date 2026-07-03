@@ -190,6 +190,22 @@ def test_scheduled_hover_handles_none_kickoff() -> None:
     assert "advances: Brazil 70%" in hover
 
 
+def test_card_header_scheduled_without_kickoff_keeps_tbd_pill() -> None:
+    # The resolver pairs a tie as soon as its feeders finish, which can be
+    # before the feed publishes the kickoff. The card must keep its header
+    # strip (with a TBD pill) instead of rendering headerless.
+    module = _load_module("wc_dashboard_header_none_kickoff")
+    row = {
+        "status": "scheduled",
+        "kickoff": None,
+        "pen_home": None,
+        "et_home": None,
+    }
+    header = module._card_header(row)
+    assert 'class="bkt-head"' in header
+    assert '<span class="bkt-pill">TBD</span>' in header
+
+
 def test_streamlit_config_has_exact_primary_color() -> None:
     with _STREAMLIT_CONFIG.open("rb") as handle:
         config = tomllib.load(handle)

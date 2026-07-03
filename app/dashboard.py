@@ -401,9 +401,14 @@ def _card_header(row: dict) -> str:
             pill = "AET"
         else:
             pill = "FT"
-    elif row["status"] == "scheduled" and kickoff:
-        stamp = datetime.fromisoformat(kickoff).astimezone(timezone.utc)
-        pill = f"{stamp.strftime('%H:%M')} UTC"
+    elif row["status"] == "scheduled":
+        # The resolver can pair a tie before the feed publishes its kickoff
+        # (it derives teams from the finished feeders); keep the header strip.
+        if kickoff:
+            stamp = datetime.fromisoformat(kickoff).astimezone(timezone.utc)
+            pill = f"{stamp.strftime('%H:%M')} UTC"
+        else:
+            pill = "TBD"
     else:
         pill = ""
     if not when and not pill:
