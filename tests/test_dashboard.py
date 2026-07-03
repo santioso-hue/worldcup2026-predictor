@@ -140,7 +140,7 @@ def test_state_strip_stats_on_synthetic_input() -> None:
     assert stats["favorite_odds"] == "30.0%"
     assert stats["alive"] == "47"
     assert stats["played"] == "1"
-    assert stats["next_kickoff"] == "Jul 3"
+    assert stats["next_kickoff"] == "Jul 3, 15:00 UTC"
 
 
 def test_state_strip_stats_no_scheduled_ties_gives_dash() -> None:
@@ -169,7 +169,7 @@ def test_state_strip_stats_ignores_none_kickoff_among_scheduled_ties() -> None:
         "91": {"status": "scheduled", "kickoff": "2026-07-05T23:00:00+00:00"},
     }
     stats = module._state_strip_stats(probabilities, bracket)
-    assert stats["next_kickoff"] == "Jul 5"
+    assert stats["next_kickoff"] == "Jul 5, 23:00 UTC"
 
 
 def test_state_strip_stats_all_none_kickoffs_gives_dash() -> None:

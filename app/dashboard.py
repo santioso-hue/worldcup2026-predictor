@@ -16,7 +16,7 @@ import html
 import os
 import subprocess
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 # Deployment shim: Streamlit Cloud runs this file directly without an
@@ -120,8 +120,10 @@ def _state_strip_stats(
         if tie["status"] == "scheduled" and tie["kickoff"]
     ]
     if kickoffs:
-        first = date.fromisoformat(min(kickoffs)[:10])
-        next_kickoff = f"{first.strftime('%b')} {first.day}"
+        first = datetime.fromisoformat(min(kickoffs)).astimezone(timezone.utc)
+        next_kickoff = (
+            f"{first.strftime('%b')} {first.day}, {first.strftime('%H:%M')} UTC"
+        )
     else:
         next_kickoff = "—"
     return {
