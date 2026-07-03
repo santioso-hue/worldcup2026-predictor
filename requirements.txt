@@ -8,6 +8,5 @@ pyyaml
 typer
 requests
 matplotlib
-plotly
 streamlit
 tzdata

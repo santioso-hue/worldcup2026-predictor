@@ -3,8 +3,7 @@
 ``run_pipeline`` chains ``reconcile`` -> ``fit_elo`` -> ``build_state`` -> Monte Carlo
 and returns the probabilities + the reconciled matches (for snapshotting). The core
 never touches the network or filesystem, so it's tested with fixtures; I/O (fetch,
-snapshot, figures) lives in ``scripts/``. ``reconcile`` feeds ``build_state`` (that
-wiring used to be missing).
+snapshot, figures) lives in ``scripts/``.
 """
 
 from __future__ import annotations

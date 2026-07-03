@@ -1,8 +1,10 @@
 # worldcup2026-predictor
 
-Live-updating predictor for the 2026 World Cup (48 teams, 12 groups). As matches get
-played, it recalculates probabilities from real results and rebuilds the prediction
-charts. The model chains **dynamic Elo → Dixon-Coles → conditional Monte Carlo**.
+Win probabilities for the 2026 World Cup (48 teams, 12 groups), recomputed from real
+results as the tournament plays out. Elo ratings fitted on the full history of
+international matches set team strengths, a Dixon-Coles model turns those into goal
+distributions, and a Monte Carlo simulation plays out whatever is left of the
+tournament. Every finished match feeds back in.
 
 ## Getting started
 
@@ -53,16 +55,16 @@ artifacts.
 - `outputs/figures/*.png`: champion ranking, 1X2 bar chart, scoreline heatmap, bracket,
   group tables, and reliability curve (1080x1920 vertical or 1920x1080 horizontal).
 - `outputs/videos/*.mp4`: the animation that reveals the champion.
-- `data/raw/results_<ts>.parquet`: the immutable snapshot — a record of *what the model
-  knew and when*.
+- `data/raw/results_<ts>.parquet`: the exact inputs the run saw, kept so any past
+  state can be re-run.
 
-**Reproducibility:** same snapshot, same seed, identical output. In `live` mode the
-figures change as new results come in (that's expected); to pin a reproducible
-state, use `--snapshot <ts>`.
+Runs are reproducible: the same snapshot and seed give identical output. In `live`
+mode the figures change as new results come in (that's expected); to pin a state,
+use `--snapshot <ts>`.
 
 ## How it works
 
-The pipeline chains four pieces:
+The pipeline runs in four stages:
 
 - **Live data:** `FootballDataProvider` pulls results; the schedule comes from
   openfootball and history from martj42. Each run saves a timestamped snapshot,
@@ -75,8 +77,8 @@ The pipeline chains four pieces:
   head-to-head), extra time and penalties; simulates only what's left to play and
   outputs P(round/title).
 
-On top sit the backtest (walk-forward with Platt calibration), the charts (PNG/MP4), and
-the Streamlit dashboard, all built on the artifacts each run leaves behind.
+The backtest (walk-forward, with Platt calibration), the charts (PNG/MP4), and the
+Streamlit dashboard all read from the artifacts each run leaves behind.
 
 ## Architecture
 
