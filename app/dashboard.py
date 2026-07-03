@@ -34,8 +34,11 @@ from worldcup.pipeline import (  # noqa: E402
     outcome_from_ratings,
 )
 from worldcup.simulation.bracket import FINAL_MATCH, KNOCKOUT_BRACKET  # noqa: E402
-from worldcup.viz.bracket import BracketMatch, prepare_bracket_mirrored  # noqa: E402
-from worldcup.viz.bracket_plotly import bracket_plotly_figure  # noqa: E402
+from worldcup.viz.bracket import (  # noqa: E402
+    BracketMatch,
+    prepare_bracket_mirrored,
+    render_bracket_mirrored,
+)
 from worldcup.viz.charts import (  # noqa: E402
     prepare_champion_ranking,
     prepare_group_table,
@@ -110,19 +113,24 @@ def _state_strip_stats(
     eliminated = _eliminated(probabilities)
     alive = {t: p for t, p in probabilities.items() if t not in eliminated}
     if alive:
-        favorite_team = max(alive, key=lambda t: alive[t].get("champion", 0.0))
-        favorite = f"{favorite_team} ({_fmt_prob(alive[favorite_team]['champion'])})"
+        favorite = max(alive, key=lambda t: alive[t].get("champion", 0.0))
+        favorite_odds = _fmt_prob(alive[favorite]["champion"])
     else:
-        favorite = "—"
+        favorite, favorite_odds = "—", ""
     played = sum(1 for tie in bracket.values() if tie["status"] == "finished")
     kickoffs = [
         tie["kickoff"]
         for tie in bracket.values()
         if tie["status"] == "scheduled" and tie["kickoff"]
     ]
-    next_kickoff = min(kickoffs)[:10] if kickoffs else "—"
+    if kickoffs:
+        first = date.fromisoformat(min(kickoffs)[:10])
+        next_kickoff = f"{first.strftime('%b')} {first.day}"
+    else:
+        next_kickoff = "—"
     return {
         "favorite": favorite,
+        "favorite_odds": favorite_odds,
         "alive": str(48 - len(eliminated)),
         "played": str(played),
         "next_kickoff": next_kickoff,
@@ -285,14 +293,8 @@ def _match_predictor_section(config: Config, run: RunArtifact) -> None:
         for match_ids in round_order
     ]
     positioned = prepare_bracket_mirrored(rounds)
-    hover: dict[tuple[int, int], str] = {}
-    for col_idx, match_ids in enumerate(round_order):
-        for row_idx, match_id in enumerate(match_ids):
-            text = rows[match_id]["hover"]
-            if text is not None:
-                hover[(col_idx, row_idx)] = text
-    fig = bracket_plotly_figure(positioned, hover, title="Knockout bracket")
-    st.plotly_chart(fig, use_container_width=True)
+    fig = render_bracket_mirrored(positioned, title=None)
+    st.pyplot(fig, use_container_width=True)
 
 
 def _rerun_pipeline() -> subprocess.CompletedProcess[str]:
@@ -307,7 +309,9 @@ def _rerun_pipeline() -> subprocess.CompletedProcess[str]:
 
 
 def main() -> None:
-    st.set_page_config(page_title="World Cup 2026 predictor", page_icon="⚽")
+    st.set_page_config(
+        page_title="World Cup 2026 predictor", page_icon="⚽", layout="wide"
+    )
     config = _config()
     run = load_latest_run(_ROOT / config.paths.data_processed)
 
@@ -333,7 +337,9 @@ def main() -> None:
     eliminated = _eliminated(run.probabilities)
     stats = _state_strip_stats(run.probabilities, run.bracket)
     strip_cols = st.columns(4)
-    strip_cols[0].metric("Favorite", stats["favorite"])
+    strip_cols[0].metric(
+        "Favorite", stats["favorite"], delta=stats["favorite_odds"], delta_color="off"
+    )
     strip_cols[1].metric("Teams alive", f"{stats['alive']}/48")
     strip_cols[2].metric("Knockout ties played", f"{stats['played']}/32")
     strip_cols[3].metric("Next kickoff", stats["next_kickoff"])

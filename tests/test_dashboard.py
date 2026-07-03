@@ -23,13 +23,13 @@ def test_dashboard_module_imports() -> None:
     assert not hasattr(module, "_pending_card_html")
 
 
-def test_dashboard_no_longer_uses_matplotlib_bracket_render() -> None:
-    # The bracket panel now renders via plotly; the matplotlib mirrored
-    # renderer and st.pyplot must no longer be referenced anywhere in the
-    # module source (source-grep, like the deleted-helper checks above).
+def test_dashboard_renders_bracket_with_matplotlib() -> None:
+    # The plotly bracket mispositioned text in responsive browser renders
+    # (pixel-sized fonts vs data-unit boxes), so the panel uses the
+    # matplotlib mirrored renderer, whose output is verified visually.
     source = _APP.read_text()
-    assert "render_bracket_mirrored" not in source
-    assert "st.pyplot" not in source
+    assert "render_bracket_mirrored" in source
+    assert "bracket_plotly_figure" not in source
 
 
 def _load_module(name: str = "wc_dashboard_cards"):  # type: ignore[no-untyped-def]
@@ -135,10 +135,11 @@ def test_state_strip_stats_on_synthetic_input() -> None:
         "Nigeria": {"champion": 0.0},
     }
     stats = module._state_strip_stats(probabilities, _synthetic_bracket())
-    assert stats["favorite"] == "Argentina (30.0%)"
+    assert stats["favorite"] == "Argentina"
+    assert stats["favorite_odds"] == "30.0%"
     assert stats["alive"] == "47"
     assert stats["played"] == "1"
-    assert stats["next_kickoff"] == "2026-07-03"
+    assert stats["next_kickoff"] == "Jul 3"
 
 
 def test_state_strip_stats_no_scheduled_ties_gives_dash() -> None:
@@ -167,7 +168,7 @@ def test_state_strip_stats_ignores_none_kickoff_among_scheduled_ties() -> None:
         "91": {"status": "scheduled", "kickoff": "2026-07-05T23:00:00+00:00"},
     }
     stats = module._state_strip_stats(probabilities, bracket)
-    assert stats["next_kickoff"] == "2026-07-05"
+    assert stats["next_kickoff"] == "Jul 5"
 
 
 def test_state_strip_stats_all_none_kickoffs_gives_dash() -> None:
