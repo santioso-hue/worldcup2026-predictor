@@ -350,3 +350,18 @@ def test_bracket_html_has_sixteen_elbow_connectors() -> None:
     module = _load_module("wc_dashboard_bracket_html_elbow_count")
     html_out = module._bracket_html(_synthetic_rows(), _synthetic_round_order())
     assert html_out.count('<div class="bkt-elbow bkt-elbow--') == 16
+
+
+def test_fmt_updated_humanizes_artifact_timestamp() -> None:
+    module = _load_module("wc_dashboard_fmt_updated")
+    assert module._fmt_updated("20260703t0728") == "Jul 3, 07:28 UTC"
+    # Unknown formats pass through instead of crashing the page.
+    assert module._fmt_updated("weird") == "weird"
+
+
+def test_score_label_appends_penalties_for_shootout_ties() -> None:
+    module = _load_module("wc_dashboard_score_label")
+    shootout = {"ft_home": 1, "ft_away": 1, "pen_home": 3, "pen_away": 4}
+    assert module._score_label(shootout) == "1–1 (3–4 p)"
+    regular = {"ft_home": 2, "ft_away": 0}
+    assert module._score_label(regular) == "2–0"

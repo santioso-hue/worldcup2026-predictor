@@ -16,7 +16,7 @@ import html
 import os
 import subprocess
 import sys
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 # Deployment shim: Streamlit Cloud runs this file directly without an
@@ -133,6 +133,19 @@ def _state_strip_stats(
     }
 
 
+def _fmt_updated(ts: str) -> str:
+    """Humanize an artifact timestamp: "20260703t0728" -> "Jul 3, 07:28 UTC".
+
+    Falls back to the raw string if the format ever changes — a stamp must
+    never crash the page.
+    """
+    try:
+        stamped = datetime.strptime(ts, "%Y%m%dt%H%M")
+    except ValueError:
+        return ts
+    return f"{stamped.strftime('%b')} {stamped.day}, {stamped.strftime('%H:%M')} UTC"
+
+
 def _fmt_prob(p: float) -> str:
     """One-decimal percentage, flooring tiny nonzero values to ``"<0.1%"``.
 
@@ -193,10 +206,24 @@ def _bracket_round_order() -> list[list[int]]:
     return [rounds_by_depth[d] for d in sorted(rounds_by_depth, reverse=True)]
 
 
+def _score_label(tie: dict) -> str:
+    """Display score for a decided tie; shootouts append the penalty score.
+
+    A shootout tie keeps its 120' scoreline as the score (e.g. "1–1") — the
+    winner comes from the penalties, shown as "(3–4 p)". Showing only the
+    bundled aggregate would invent scorelines that never happened.
+    """
+    score = f"{tie['ft_home']}–{tie['ft_away']}"
+    pen_home, pen_away = tie.get("pen_home"), tie.get("pen_away")
+    if pen_home is not None and pen_away is not None:
+        score += f" ({pen_home}–{pen_away} p)"
+    return score
+
+
 def _finished_hover(tie: dict) -> str:
     """Hover text for a decided tie: stage and final score."""
     stage, home, away = tie["stage"], tie["home"], tie["away"]
-    return f"{stage} — final: {home} {tie['ft_home']}–{tie['ft_away']} {away}"
+    return f"{stage} — final: {home} {_score_label(tie)} {away}"
 
 
 def _scheduled_hover(tie: dict, card: dict[str, float], label: str) -> str:
@@ -236,7 +263,7 @@ def _bracket_rows(
                 "home": home,
                 "away": away,
                 "winner": tie["winner"],
-                "annotation": f"{tie['ft_home']}–{tie['ft_away']}",
+                "annotation": _score_label(tie),
                 "highlight": tie["winner"],
                 "hover": _finished_hover(tie),
             }
@@ -523,9 +550,7 @@ def main() -> None:
     title_col, button_col = st.columns([4, 1])
     title_col.title("World Cup 2026 predictor")
     if run is not None:
-        title_col.caption(
-            f"Updated {run.timestamp} · live model — Elo → Dixon-Coles → Monte Carlo"
-        )
+        title_col.caption(f"Updated {_fmt_updated(run.timestamp)}")
     if not os.environ.get("WC_PUBLIC_DEMO") and button_col.button("Re-simulate"):
         with st.spinner("Re-simulating…"):
             result = _rerun_pipeline()
@@ -607,6 +632,10 @@ def main() -> None:
             "Probability": [f"{d.prob:.1%}" for d in detail],
         },
         hide_index=True,
+    )
+
+    st.caption(
+        "Elo · Dixon-Coles · conditional Monte Carlo — methodology in the README"
     )
 
 
