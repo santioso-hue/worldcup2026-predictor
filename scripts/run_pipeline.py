@@ -14,31 +14,47 @@ pinning the history alongside the snapshot (not done yet).
 from __future__ import annotations
 
 import os
+import sys
 from datetime import date
 from pathlib import Path
 
-import typer
+# Same shim as the dashboard: make `worldcup` importable without an editable
+# install, so the script works from any caller (subprocess, cron, bare run).
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from worldcup.config import Config, load_config
-from worldcup.data.download import (
+import typer  # noqa: E402
+
+from worldcup.config import Config, load_config  # noqa: E402
+from worldcup.data.download import (  # noqa: E402
     fetch_openfootball,
     load_latest_snapshot,
     load_snapshot,
     make_timestamp,
     save_snapshot,
 )
-from worldcup.data.football_data import FootballDataProvider
-from worldcup.data.historical import HistoricalMatch, fetch_martj42, parse_results_csv
-from worldcup.data.live_results import LiveResultsProvider, NormalizedMatch
-from worldcup.data.schedule import parse_openfootball, validate_schedule
-from worldcup.data.triggers import CronTrigger, RefreshTrigger, WatchTrigger
-from worldcup.pipeline import (
+from worldcup.data.football_data import FootballDataProvider  # noqa: E402
+from worldcup.data.historical import (
+    HistoricalMatch,
+    fetch_martj42,
+    parse_results_csv,
+)  # noqa: E402
+from worldcup.data.live_results import (
+    LiveResultsProvider,
+    NormalizedMatch,
+)  # noqa: E402
+from worldcup.data.schedule import parse_openfootball, validate_schedule  # noqa: E402
+from worldcup.data.triggers import (
+    CronTrigger,
+    RefreshTrigger,
+    WatchTrigger,
+)  # noqa: E402
+from worldcup.pipeline import (  # noqa: E402
     load_latest_probabilities,
     render_outputs,
     run_pipeline,
     write_probabilities,
 )
-from worldcup.simulation.bracket import load_annex_c
+from worldcup.simulation.bracket import load_annex_c  # noqa: E402
 
 _AnnexC = dict[frozenset[str], dict[str, str]]
 _ROOT = Path(__file__).resolve().parents[1]

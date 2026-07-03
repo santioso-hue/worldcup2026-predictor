@@ -11,13 +11,18 @@ Examples:
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
-import typer
+# Same shim as the dashboard: make `worldcup` importable without an editable
+# install, so the script works from any caller.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from worldcup.config import load_config
-from worldcup.data.historical import fetch_martj42, parse_results_csv
-from worldcup.pipeline import predict_match
+import typer  # noqa: E402
+
+from worldcup.config import load_config  # noqa: E402
+from worldcup.data.historical import fetch_martj42, parse_results_csv  # noqa: E402
+from worldcup.pipeline import predict_match  # noqa: E402
 
 
 def main(
