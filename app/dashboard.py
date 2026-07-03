@@ -18,6 +18,7 @@ import subprocess
 import sys
 from datetime import date, datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 # Deployment shim: Streamlit Cloud runs this file directly without an
 # editable install of `worldcup`, so put `src/` on the path before importing.
@@ -42,6 +43,15 @@ from worldcup.viz.charts import (  # noqa: E402
 )
 
 _ROOT = Path(__file__).resolve().parents[1]
+
+# All kickoff times render in US Eastern time: the 2026 hosts span four time
+# zones and ET is the broadcast reference for the tournament.
+_EASTERN = ZoneInfo("America/New_York")
+
+
+def _kickoff_et(kickoff: str) -> datetime:
+    """Kickoff ISO string (UTC in the artifact) -> Eastern-time datetime."""
+    return datetime.fromisoformat(kickoff).astimezone(_EASTERN)
 
 
 def _config() -> Config:
@@ -120,9 +130,9 @@ def _state_strip_stats(
         if tie["status"] == "scheduled" and tie["kickoff"]
     ]
     if kickoffs:
-        first = datetime.fromisoformat(min(kickoffs)).astimezone(timezone.utc)
+        first = _kickoff_et(min(kickoffs))
         next_kickoff = (
-            f"{first.strftime('%b')} {first.day}, {first.strftime('%H:%M')} UTC"
+            f"{first.strftime('%b')} {first.day}, {first.strftime('%H:%M')} ET"
         )
     else:
         next_kickoff = "—"
@@ -136,8 +146,9 @@ def _state_strip_stats(
 
 
 def _fmt_updated(ts: str) -> str:
-    """Humanize an artifact timestamp: "20260703t0728" -> "Jul 3, 07:28 UTC".
+    """Humanize an artifact timestamp: "20260703t0728" -> "Jul 3, 03:28 ET".
 
+    Artifact stamps are UTC; display follows the kickoff convention (Eastern).
     Falls back to the raw string if the format ever changes — a stamp must
     never crash the page.
     """
@@ -145,7 +156,8 @@ def _fmt_updated(ts: str) -> str:
         stamped = datetime.strptime(ts, "%Y%m%dt%H%M")
     except ValueError:
         return ts
-    return f"{stamped.strftime('%b')} {stamped.day}, {stamped.strftime('%H:%M')} UTC"
+    local = stamped.replace(tzinfo=timezone.utc).astimezone(_EASTERN)
+    return f"{local.strftime('%b')} {local.day}, {local.strftime('%H:%M')} ET"
 
 
 def _fmt_prob(p: float) -> str:
@@ -234,7 +246,11 @@ def _scheduled_hover(tie: dict, card: dict[str, float], label: str) -> str:
     """Hover text for an undecided tie: stage, kickoff date, 1X2, advance label."""
     stage, home, away = tie["stage"], tie["home"], tie["away"]
     kickoff = tie["kickoff"]
-    when = kickoff[:10] if kickoff else "date TBD"
+    if kickoff:
+        stamp = _kickoff_et(kickoff)
+        when = f"{stamp.strftime('%b')} {stamp.day}"
+    else:
+        when = "date TBD"
     return (
         f"{stage} — {when}<br>"
         f"{home} {card['home']:.0%} · draw {card['draw']:.0%} · "
@@ -392,7 +408,7 @@ def _card_header(row: dict) -> str:
     kickoff = row["kickoff"]
     when = ""
     if kickoff:
-        stamp = datetime.fromisoformat(kickoff).astimezone(timezone.utc)
+        stamp = _kickoff_et(kickoff)
         when = f"{stamp.strftime('%b')} {stamp.day}"
     if row["status"] == "finished":
         if row["pen_home"] is not None:
@@ -405,8 +421,8 @@ def _card_header(row: dict) -> str:
         # The resolver can pair a tie before the feed publishes its kickoff
         # (it derives teams from the finished feeders); keep the header strip.
         if kickoff:
-            stamp = datetime.fromisoformat(kickoff).astimezone(timezone.utc)
-            pill = f"{stamp.strftime('%H:%M')} UTC"
+            stamp = _kickoff_et(kickoff)
+            pill = f"{stamp.strftime('%H:%M')} ET"
         else:
             pill = "TBD"
     else:
