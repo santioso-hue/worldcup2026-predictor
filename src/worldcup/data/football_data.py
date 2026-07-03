@@ -8,13 +8,17 @@ header.
 
 v4 schema: ``GET /competitions/{code}/matches`` -> ``{matches: [...]}``; each match
 carries ``id``, ``utcDate``, ``status``, ``stage``, ``group``, the teams, and
-``score.{winner, duration, fullTime, halfTime}``.
+``score.{winner, duration, fullTime, halfTime}``. Decided knockouts additionally
+carry ``regularTime``, ``extraTime``, and ``penalties``.
 
-Penalties: v4 does NOT break out the shootout and folds extra time into ``fullTime``.
-When there's a winner but ``fullTime`` is level (penalties), we encode ``pen_*`` as
-(1,0)/(0,1) for the winner and mirror ``et_* = ft_*`` (draw after extra time). The
-``et`` mirroring isn't decorative: without it, ``validate_match`` would flag "penalties
-without extra time" and ``reconcile`` would drop the tie.
+Penalties: v4 folds EVERYTHING into ``fullTime`` — for a shootout, even the shootout
+goals (a 1-1 match decided 3-4 on penalties arrives as ``fullTime`` 4-5). When the
+phase breakdown is present we rebuild the real phases from ``regularTime``/
+``extraTime``/``penalties``. When it's absent we fall back to the old inference:
+a level ``fullTime`` with a winner means penalties, encoded as a synthetic
+(1,0)/(0,1) shootout with ``et_* = ft_*`` mirrored (a draw after extra time). The
+``et`` mirroring isn't decorative: without it, ``validate_match`` would flag
+"penalties without extra time" and ``reconcile`` would drop the tie.
 """
 
 from __future__ import annotations
@@ -89,6 +93,9 @@ def parse_footballdata_match(
     score = raw.get("score") or {}
     full_time = score.get("fullTime") or {}
     half_time = score.get("halfTime") or {}
+    regular_time = score.get("regularTime") or {}
+    extra_time = score.get("extraTime") or {}
+    penalties = score.get("penalties") or {}
     # Canonicalize to martj42 names BEFORE deriving match_id, so the id, reconcile,
     # groups, and Elo lookup all share one identity.
     home = canonical_footballdata_team(raw["homeTeam"]["name"])
@@ -102,16 +109,29 @@ def parse_footballdata_match(
     et_home: int | None = None
     et_away: int | None = None
     winner = score.get("winner")
-    if (
+    duration = score.get("duration")
+    rt_home = _opt_int(regular_time.get("home"))
+    rt_away = _opt_int(regular_time.get("away"))
+    if duration in ("EXTRA_TIME", "PENALTY_SHOOTOUT") and rt_home is not None:
+        # For decided knockouts v4 breaks the phases out — and folds EVERYTHING,
+        # including shootout goals, into fullTime (Germany 1-1 Paraguay, pens 3-4,
+        # arrives as fullTime 4-5). Rebuild the real phases: ft = 90' score,
+        # et = cumulative score after extra time, pen = the actual shootout.
+        ft_home, ft_away = rt_home, rt_away
+        et_home = rt_home + (_opt_int(extra_time.get("home")) or 0)
+        et_away = (rt_away or 0) + (_opt_int(extra_time.get("away")) or 0)
+        if duration == "PENALTY_SHOOTOUT":
+            pen_home = _opt_int(penalties.get("home"))
+            pen_away = _opt_int(penalties.get("away"))
+    elif (
         winner in ("HOME_TEAM", "AWAY_TEAM")
         and ft_home is not None
         and ft_home == ft_away
     ):
-        # v4 folds extra time into fullTime: a level score (ft) with a winner means
-        # penalties after extra time that was also level. We mirror et = ft alongside
-        # pen_*, so validate_match reads it as "draw resolved by penalties"; without
-        # et, the "penalties without extra time" rule would flag it and reconcile
-        # would drop it.
+        # Fallback when the phase breakdown is absent: a level fullTime with a
+        # winner means penalties after level extra time. Mirror et = ft and encode
+        # a synthetic 1-0/0-1 shootout so validate_match reads it as "draw resolved
+        # by penalties" instead of flagging "penalties without extra time".
         et_home, et_away = ft_home, ft_away
         pen_home, pen_away = (1, 0) if winner == "HOME_TEAM" else (0, 1)
 

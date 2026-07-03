@@ -41,6 +41,27 @@ KO_PENALTIES = {
     },
 }
 
+# Real v4 shape for a decided shootout: fullTime bundles even the shootout goals
+# (1-1 after 120', pens 3-4 -> fullTime 4-5); the true phases come broken out.
+KO_PENALTIES_BREAKDOWN = {
+    "id": 201,
+    "utcDate": "2026-06-29T19:00:00Z",
+    "status": "FINISHED",
+    "stage": "LAST_32",
+    "group": None,
+    "homeTeam": {"id": 11, "name": "Germany"},
+    "awayTeam": {"id": 21, "name": "Paraguay"},
+    "score": {
+        "winner": "AWAY_TEAM",
+        "duration": "PENALTY_SHOOTOUT",
+        "fullTime": {"home": 4, "away": 5},
+        "halfTime": {"home": 0, "away": 1},
+        "regularTime": {"home": 1, "away": 1},
+        "extraTime": {"home": 0, "away": 0},
+        "penalties": {"home": 3, "away": 4},
+    },
+}
+
 TIMED = {
     "id": 300,
     "utcDate": "2026-06-12T19:00:00Z",
@@ -86,13 +107,27 @@ def test_parse_group_finished() -> None:
 
 
 def test_parse_penalty_ko_encodes_winner() -> None:
-    # v4 doesn't break out the shootout: fullTime stays 1-1, the winner is in `winner`.
+    # Fallback shape (no phase breakdown): fullTime stays 1-1, winner in `winner`.
     m = parse_footballdata_match(KO_PENALTIES)
     assert m.status is MatchStatus.FINISHED
     assert (m.ft_home, m.ft_away) == (1, 1)
     assert (m.et_home, m.et_away) == (1, 1)  # et mirrored = ft (draw after extra time)
     assert (m.pen_home, m.pen_away) == (0, 1)  # AWAY won -> _winner_of picks away
     assert m.stage == "Final"
+
+
+def test_parse_penalty_ko_with_phase_breakdown_rebuilds_real_scores() -> None:
+    # Real v4 shape: fullTime 4-5 BUNDLES the shootout goals. The parser must
+    # rebuild ft from regularTime, et cumulatively, and pen from `penalties` —
+    # otherwise the tie displays as a fictional 4-5 thriller.
+    m = parse_footballdata_match(KO_PENALTIES_BREAKDOWN)
+    assert m.status is MatchStatus.FINISHED
+    assert (m.ft_home, m.ft_away) == (1, 1)  # 90' score, NOT fullTime's 4-5
+    assert (m.et_home, m.et_away) == (1, 1)  # 1-1 + 0-0 extra time
+    assert (m.pen_home, m.pen_away) == (3, 4)  # the actual shootout
+    assert validate_match(m) == []
+    rec = reconcile([], [m])
+    assert rec.anomalies == []
 
 
 def test_penalty_ko_survives_validation_and_reconcile() -> None:
