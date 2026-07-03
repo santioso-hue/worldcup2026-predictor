@@ -109,15 +109,28 @@ def parse_footballdata_match(
     duration = score.get("duration")
     rt_home = _opt_int(regular_time.get("home"))
     rt_away = _opt_int(regular_time.get("away"))
-    if duration in ("EXTRA_TIME", "PENALTY_SHOOTOUT") and rt_home is not None:
+    if (
+        duration in ("EXTRA_TIME", "PENALTY_SHOOTOUT")
+        and rt_home is not None
+        and rt_away is not None
+    ):
         # fullTime bundles even shootout goals (module docstring); rebuild the
         # real phases: ft = 90' score, et = cumulative, pen = the shootout.
+        # A partial regularTime falls through to the inference below instead.
         ft_home, ft_away = rt_home, rt_away
         et_home = rt_home + (_opt_int(extra_time.get("home")) or 0)
-        et_away = (rt_away or 0) + (_opt_int(extra_time.get("away")) or 0)
+        et_away = rt_away + (_opt_int(extra_time.get("away")) or 0)
         if duration == "PENALTY_SHOOTOUT":
             pen_home = _opt_int(penalties.get("home"))
             pen_away = _opt_int(penalties.get("away"))
+            if (pen_home is None or pen_away is None) and winner in (
+                "HOME_TEAM",
+                "AWAY_TEAM",
+            ):
+                # Shootout numbers can lag the result on the feed; encode the
+                # winner as a synthetic 1-0/0-1 so the decided tie isn't
+                # dropped as "finished knockout without a resolution".
+                pen_home, pen_away = (1, 0) if winner == "HOME_TEAM" else (0, 1)
     elif (
         winner in ("HOME_TEAM", "AWAY_TEAM")
         and ft_home is not None

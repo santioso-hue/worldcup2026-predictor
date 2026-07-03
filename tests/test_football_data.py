@@ -130,6 +130,54 @@ def test_parse_penalty_ko_with_phase_breakdown_rebuilds_real_scores() -> None:
     assert rec.anomalies == []
 
 
+def test_parse_partial_regular_time_falls_back_to_inference() -> None:
+    # A regularTime with only one side set must not produce a half-rebuilt row
+    # (ft_away=None with et_away=0); it falls back to the level-fullTime
+    # inference, same as when the breakdown is absent.
+    raw = {
+        **KO_PENALTIES_BREAKDOWN,
+        "score": {
+            "winner": "AWAY_TEAM",
+            "duration": "PENALTY_SHOOTOUT",
+            "fullTime": {"home": 1, "away": 1},
+            "halfTime": {"home": 0, "away": 1},
+            "regularTime": {"home": 1, "away": None},
+            "extraTime": {"home": 0, "away": 0},
+            "penalties": {"home": 3, "away": 4},
+        },
+    }
+    m = parse_footballdata_match(raw)
+    assert (m.ft_home, m.ft_away) == (1, 1)
+    assert (m.et_home, m.et_away) == (1, 1)  # mirrored by the fallback
+    assert (m.pen_home, m.pen_away) == (0, 1)  # AWAY_TEAM winner
+    assert validate_match(m) == []
+
+
+def test_parse_shootout_with_missing_penalty_counts_keeps_the_result() -> None:
+    # The shootout numbers can lag the result on the feed. The winner must
+    # still be encoded (synthetic 1-0/0-1) or validation would drop a decided
+    # tie and the pipeline would re-simulate a played match.
+    raw = {
+        **KO_PENALTIES_BREAKDOWN,
+        "score": {
+            "winner": "AWAY_TEAM",
+            "duration": "PENALTY_SHOOTOUT",
+            "fullTime": {"home": 4, "away": 5},
+            "halfTime": {"home": 0, "away": 1},
+            "regularTime": {"home": 1, "away": 1},
+            "extraTime": {"home": 0, "away": 0},
+            "penalties": {},
+        },
+    }
+    m = parse_footballdata_match(raw)
+    assert (m.ft_home, m.ft_away) == (1, 1)
+    assert (m.et_home, m.et_away) == (1, 1)
+    assert (m.pen_home, m.pen_away) == (0, 1)  # AWAY_TEAM won the shootout
+    assert validate_match(m) == []
+    rec = reconcile([], [m])
+    assert rec.anomalies == []
+
+
 def test_penalty_ko_survives_validation_and_reconcile() -> None:
     # Regression: a penalty-decided KO from the live feed must pass validate_match and
     # NOT get dropped by reconcile (previously "penalties without extra time" flagged
