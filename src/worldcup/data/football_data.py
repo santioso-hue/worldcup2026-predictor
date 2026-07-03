@@ -11,14 +11,13 @@ carries ``id``, ``utcDate``, ``status``, ``stage``, ``group``, the teams, and
 ``score.{winner, duration, fullTime, halfTime}``. Decided knockouts additionally
 carry ``regularTime``, ``extraTime``, and ``penalties``.
 
-Penalties: v4 folds EVERYTHING into ``fullTime`` — for a shootout, even the shootout
-goals (a 1-1 match decided 3-4 on penalties arrives as ``fullTime`` 4-5). When the
-phase breakdown is present we rebuild the real phases from ``regularTime``/
-``extraTime``/``penalties``. When it's absent we fall back to the old inference:
-a level ``fullTime`` with a winner means penalties, encoded as a synthetic
-(1,0)/(0,1) shootout with ``et_* = ft_*`` mirrored (a draw after extra time). The
-``et`` mirroring isn't decorative: without it, ``validate_match`` would flag
-"penalties without extra time" and ``reconcile`` would drop the tie.
+Penalties: v4 folds everything into ``fullTime``, shootout goals included (a 1-1
+match decided 3-4 on penalties arrives as ``fullTime`` 4-5). When the phase
+breakdown is present we rebuild the real phases from ``regularTime``/``extraTime``/
+``penalties``. When it's absent we fall back to inference: a level ``fullTime``
+with a winner means penalties, encoded as a synthetic (1,0)/(0,1) shootout with
+``et_* = ft_*`` mirrored — without the mirror, ``validate_match`` flags "penalties
+without extra time" and ``reconcile`` drops the tie.
 """
 
 from __future__ import annotations
@@ -86,9 +85,7 @@ def parse_footballdata_match(
     """Convert a football-data.org v4 match to :class:`NormalizedMatch` (pure).
 
     ``match_id`` is derived from the UTC kickoff date + teams (same anchor as the
-    openfootball backbone, so feeds can be joined). For a penalty-decided knockout,
-    ``pen_*`` is encoded from ``score.winner`` and ``et_* = ft_*`` is mirrored (see
-    module docstring).
+    openfootball backbone, so feeds can be joined).
     """
     score = raw.get("score") or {}
     full_time = score.get("fullTime") or {}
@@ -113,10 +110,8 @@ def parse_footballdata_match(
     rt_home = _opt_int(regular_time.get("home"))
     rt_away = _opt_int(regular_time.get("away"))
     if duration in ("EXTRA_TIME", "PENALTY_SHOOTOUT") and rt_home is not None:
-        # For decided knockouts v4 breaks the phases out — and folds EVERYTHING,
-        # including shootout goals, into fullTime (Germany 1-1 Paraguay, pens 3-4,
-        # arrives as fullTime 4-5). Rebuild the real phases: ft = 90' score,
-        # et = cumulative score after extra time, pen = the actual shootout.
+        # fullTime bundles even shootout goals (module docstring); rebuild the
+        # real phases: ft = 90' score, et = cumulative, pen = the shootout.
         ft_home, ft_away = rt_home, rt_away
         et_home = rt_home + (_opt_int(extra_time.get("home")) or 0)
         et_away = (rt_away or 0) + (_opt_int(extra_time.get("away")) or 0)
@@ -128,10 +123,8 @@ def parse_footballdata_match(
         and ft_home is not None
         and ft_home == ft_away
     ):
-        # Fallback when the phase breakdown is absent: a level fullTime with a
-        # winner means penalties after level extra time. Mirror et = ft and encode
-        # a synthetic 1-0/0-1 shootout so validate_match reads it as "draw resolved
-        # by penalties" instead of flagging "penalties without extra time".
+        # No phase breakdown: infer penalties from the level fullTime + winner
+        # (synthetic shootout, mirrored et — see module docstring).
         et_home, et_away = ft_home, ft_away
         pen_home, pen_away = (1, 0) if winner == "HOME_TEAM" else (0, 1)
 

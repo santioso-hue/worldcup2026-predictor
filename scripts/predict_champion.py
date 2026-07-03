@@ -14,33 +14,29 @@ Examples:
 
 from __future__ import annotations
 
-import json
+import sys
 from pathlib import Path
 
-import typer
+# Same shim as the dashboard: make `worldcup` importable without an editable
+# install, so the script works from any caller (subprocess, cron, bare run).
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+import typer  # noqa: E402
+
+from worldcup.pipeline import load_latest_run  # noqa: E402
 
 _ROOT = Path(__file__).resolve().parents[1]
 _PROCESSED = _ROOT / "data" / "processed"
 
 
-def _load_latest() -> tuple[str, dict[str, dict[str, float]]]:
-    """Return ``(timestamp, probabilities)`` from the latest run; fails loudly."""
-    pointer = _PROCESSED / "latest.json"
-    if not pointer.exists():
-        raise typer.BadParameter(
-            "no runs yet: data/processed/latest.json is missing. "
-            "Run `make run` or `python scripts/run_pipeline.py "
-            "--mode pre_tournament` first."
-        )
-    ts = json.loads(pointer.read_text())["timestamp"]
-    probs_path = _PROCESSED / f"probabilities_{ts}.json"
-    if not probs_path.exists():
-        raise typer.BadParameter(f"pointer targets {ts} but {probs_path} is missing.")
-    return ts, json.loads(probs_path.read_text())["probabilities"]
-
-
 def main(top: int = 10, team: str | None = None) -> None:
-    ts, probs = _load_latest()
+    run = load_latest_run(_PROCESSED)
+    if run is None:
+        raise typer.BadParameter(
+            "no readable run under data/processed. Run `make run` or "
+            "`python scripts/run_pipeline.py --mode pre_tournament` first."
+        )
+    ts, probs = run.timestamp, run.probabilities
     ranking = sorted(
         ((name, p["champion"]) for name, p in probs.items()), key=lambda x: -x[1]
     )
