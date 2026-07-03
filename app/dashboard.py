@@ -2,16 +2,17 @@
 
 Just Streamlit glue; the testable logic lives in ``worldcup.pipeline``/``viz``.
 "Re-simulate" triggers the pipeline CLI (subprocess), reusing the single
-orchestration path. The "Knockout bracket" panel renders the mirrored bracket
-from the persisted ``run.bracket`` artifact: finished ties show the score,
-scheduled ties predict the advance probability live (reusing
-``knockout_advance_probability`` via the cached ``_predict_card`` path), and
-TBD slots show empty boxes.
+orchestration path. The "Knockout bracket" panel renders a two-sided bracket
+of native HTML/CSS match cards (``_bracket_html``) from the persisted
+``run.bracket`` artifact: finished ties show the score, scheduled ties predict
+the advance probability live (reusing ``knockout_advance_probability`` via the
+cached ``_predict_card`` path), and TBD slots show empty cards.
 Run: ``streamlit run app/dashboard.py``.
 """
 
 from __future__ import annotations
 
+import html
 import os
 import subprocess
 import sys
@@ -34,11 +35,6 @@ from worldcup.pipeline import (  # noqa: E402
     outcome_from_ratings,
 )
 from worldcup.simulation.bracket import FINAL_MATCH, KNOCKOUT_BRACKET  # noqa: E402
-from worldcup.viz.bracket import (  # noqa: E402
-    BracketMatch,
-    prepare_bracket_mirrored,
-    render_bracket_mirrored,
-)
 from worldcup.viz.charts import (  # noqa: E402
     prepare_champion_ranking,
     prepare_group_table,
@@ -220,15 +216,13 @@ def _scheduled_hover(tie: dict, card: dict[str, float], label: str) -> str:
 def _bracket_rows(
     results_csv: str, ref_iso: str, bracket: dict[str, dict]
 ) -> dict[int, dict]:
-    """Precompute the annotated ``BracketMatch`` fields per match number.
+    """Precompute the annotated match fields per match number, for card HTML.
 
     Cached on (results, reference date, bracket contents) so the (uncached)
-    figure build downstream stays cheap. ``BracketMatch``/``Figure`` objects
-    aren't hashable by ``st.cache_data``, so this returns plain dict rows and
-    the figure is assembled uncached from them. Each row also carries a
-    ``hover`` string (``None`` for TBD ties) built from the same
-    ``_predict_card`` call used for the advance label, so the dashboard
-    doesn't recompute the 1X2 separately for the tooltip.
+    HTML build downstream stays cheap. Each row also carries a ``hover``
+    string (``None`` for TBD ties) built from the same ``_predict_card`` call
+    used for the advance label, so the dashboard doesn't recompute the 1X2
+    separately for the tooltip.
     """
     config = _config()
     hosts = set(config.simulation.hosts)
@@ -272,11 +266,100 @@ def _bracket_rows(
     return rows
 
 
-_BRACKET_MATCH_FIELDS = ("home", "away", "winner", "annotation", "highlight")
+_BRACKET_CSS = """
+<style>
+.bkt-wrap{overflow-x:auto;padding:8px 0;}
+.bkt{display:flex;gap:14px;min-width:1180px;align-items:stretch;}
+.bkt-col{display:flex;flex-direction:column;justify-content:space-around;
+  gap:10px;flex:1 1 0;min-width:120px;}
+.bkt-col--final{justify-content:center;}
+.bkt-card{border:1px solid #e6e6e6;border-radius:12px;padding:8px 10px;
+  background:#fff;transition:box-shadow .15s,border-color .15s;}
+.bkt-card:hover{box-shadow:0 2px 8px rgba(24,95,165,.25);border-color:#185FA5;}
+.bkt-card--tbd{background:#fafafa;}
+.bkt-row{display:flex;justify-content:space-between;align-items:center;
+  font-size:13px;padding:2px 0;gap:6px;}
+.bkt-team{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.bkt-team--win{color:#185FA5;font-weight:600;}
+.bkt-team--tbd{color:#999;}
+.bkt-chip{margin-top:6px;padding-top:6px;border-top:1px solid #eee;
+  font-size:11px;text-align:right;}
+.bkt-chip--advance{color:#185FA5;}
+.bkt-chip--score{color:#666;}
+</style>
+"""
+
+
+def _bracket_card_html(row: dict) -> str:
+    """One match card: two team rows, optional score/advance chip, hover title."""
+    home, away = row["home"], row["away"]
+    winner, highlight = row["winner"], row["highlight"]
+    tbd = home is None or away is None
+    hover = row["hover"]
+    title_attr = ""
+    if hover:
+        tooltip = html.escape(hover.replace("<br>", "\n"), quote=True)
+        title_attr = f' title="{tooltip}"'
+
+    def team_row(team: str | None) -> str:
+        if team is None:
+            return (
+                '<div class="bkt-row"><span class="bkt-team bkt-team--tbd">'
+                "&mdash;</span></div>"
+            )
+        css = "bkt-team bkt-team--win" if team in (winner, highlight) else "bkt-team"
+        return (
+            f'<div class="bkt-row"><span class="{css}">'
+            f"{html.escape(team)}</span></div>"
+        )
+
+    chip = ""
+    if row["annotation"]:
+        chip_kind = "score" if winner else "advance"
+        chip = (
+            f'<div class="bkt-chip bkt-chip--{chip_kind}">'
+            f'{html.escape(row["annotation"])}</div>'
+        )
+
+    card_css = "bkt-card bkt-card--tbd" if tbd else "bkt-card"
+    return (
+        f'<div class="{card_css}"{title_attr}>'
+        f"{team_row(home)}{team_row(away)}{chip}</div>"
+    )
+
+
+def _bracket_html(rows: dict[int, dict], round_order: list[list[int]]) -> str:
+    """Two-sided bracket as linked match cards: 9 flex columns, no images.
+
+    ``round_order`` is ``[R32(16), R16(8), QF(4), SF(2), Final(1)]``; the first
+    half of each round's list is the left side of the draw, the second half is
+    the right side (mirrored). Columns run left R32 -> left R16 -> left QF ->
+    left SF -> Final -> right SF -> right QF -> right R16 -> right R32, each
+    ``justify-content:space-around`` so cards center against their feeders —
+    the classic CSS-bracket trick, no absolute positioning or connector math.
+    """
+    semis, final_round = round_order[:-1], round_order[-1]
+    left_halves = [match_ids[: len(match_ids) // 2] for match_ids in semis]
+    right_halves = [match_ids[len(match_ids) // 2 :] for match_ids in semis]
+
+    def column(match_ids: list[int], *, extra_css: str = "") -> str:
+        cards = "".join(_bracket_card_html(rows[m]) for m in match_ids)
+        return f'<div class="bkt-col{extra_css}">{cards}</div>'
+
+    columns = [column(half) for half in left_halves]
+    columns.append(column(final_round, extra_css=" bkt-col--final"))
+    columns.extend(column(half) for half in reversed(right_halves))
+
+    return (
+        _BRACKET_CSS
+        + '<div class="bkt-wrap"><div class="bkt">'
+        + "".join(columns)
+        + "</div></div>"
+    )
 
 
 def _match_predictor_section(config: Config, run: RunArtifact) -> None:
-    """Knockout bracket panel: mirrored bracket with live advance probabilities."""
+    """Knockout bracket panel: linked match cards with live advance probabilities."""
     st.subheader("Knockout bracket")
     if not run.bracket:
         st.info("This run predates the bracket artifact — re-run the pipeline.")
@@ -285,16 +368,7 @@ def _match_predictor_section(config: Config, run: RunArtifact) -> None:
     ref_iso = date.today().isoformat()
     rows = _bracket_rows(results_csv, ref_iso, run.bracket)
     round_order = _bracket_round_order()
-    rounds = [
-        [
-            BracketMatch(**{k: rows[match_id][k] for k in _BRACKET_MATCH_FIELDS})
-            for match_id in match_ids
-        ]
-        for match_ids in round_order
-    ]
-    positioned = prepare_bracket_mirrored(rounds)
-    fig = render_bracket_mirrored(positioned, title=None)
-    st.pyplot(fig, use_container_width=True)
+    st.markdown(_bracket_html(rows, round_order), unsafe_allow_html=True)
 
 
 def _rerun_pipeline() -> subprocess.CompletedProcess[str]:

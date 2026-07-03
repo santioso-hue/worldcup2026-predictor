@@ -23,12 +23,13 @@ def test_dashboard_module_imports() -> None:
     assert not hasattr(module, "_pending_card_html")
 
 
-def test_dashboard_renders_bracket_with_matplotlib() -> None:
-    # The plotly bracket mispositioned text in responsive browser renders
-    # (pixel-sized fonts vs data-unit boxes), so the panel uses the
-    # matplotlib mirrored renderer, whose output is verified visually.
+def test_dashboard_renders_bracket_with_html_cards() -> None:
+    # The matplotlib/plotly bracket images were replaced by a native
+    # HTML/CSS bracket of linked match cards, rendered via one st.markdown.
     source = _APP.read_text()
-    assert "render_bracket_mirrored" in source
+    assert "_bracket_html" in source
+    assert "render_bracket_mirrored" not in source
+    assert "st.pyplot" not in source
     assert "bracket_plotly_figure" not in source
 
 
@@ -193,3 +194,105 @@ def test_streamlit_config_has_exact_primary_color() -> None:
     with _STREAMLIT_CONFIG.open("rb") as handle:
         config = tomllib.load(handle)
     assert config["theme"]["primaryColor"] == "#185FA5"
+
+
+def _synthetic_round_order() -> list[list[int]]:
+    """Match numbers shaped like ``_bracket_round_order()``: 16/8/4/2/1."""
+    r32 = list(range(1, 17))
+    r16 = list(range(17, 25))
+    qf = list(range(25, 29))
+    sf = list(range(29, 31))
+    final = [31]
+    return [r32, r16, qf, sf, final]
+
+
+def _synthetic_rows() -> dict[int, dict]:
+    """One finished tie, one scheduled tie, and the rest TBD (31 matches)."""
+    round_order = _synthetic_round_order()
+    all_ids = [m for round_ids in round_order for m in round_ids]
+    rows: dict[int, dict] = {}
+    for match_id in all_ids:
+        rows[match_id] = {
+            "home": None,
+            "away": None,
+            "winner": None,
+            "annotation": None,
+            "highlight": None,
+            "hover": None,
+        }
+    rows[1] = {
+        "home": "Argentina",
+        "away": "Nigeria",
+        "winner": "Argentina",
+        "annotation": "2–0",
+        "highlight": "Argentina",
+        "hover": "Round of 32 — final: Argentina 2–0 Nigeria",
+    }
+    rows[2] = {
+        "home": "Brazil",
+        "away": "Ghana",
+        "winner": None,
+        "annotation": "Brazil 68%",
+        "highlight": "Brazil",
+        "hover": "Round of 32 — 2026-07-05<br>Brazil 55% · draw 20% · "
+        "Ghana 25%<br>advances: Brazil 68%",
+    }
+    return rows
+
+
+def test_bracket_html_renders_all_31_cards() -> None:
+    module = _load_module("wc_dashboard_bracket_html_count")
+    html_out = module._bracket_html(_synthetic_rows(), _synthetic_round_order())
+    assert html_out.count("bkt-card") >= 31 * 2  # class + hover-open tag, at least
+
+
+def test_bracket_html_bolds_winner_and_favorite_in_accent_span() -> None:
+    module = _load_module("wc_dashboard_bracket_html_winner")
+    html_out = module._bracket_html(_synthetic_rows(), _synthetic_round_order())
+    assert '<span class="bkt-team bkt-team--win">Argentina</span>' in html_out
+    assert '<span class="bkt-team bkt-team--win">Brazil</span>' in html_out
+    assert '<span class="bkt-team">Nigeria</span>' in html_out
+
+
+def test_bracket_html_tbd_card_has_em_dashes() -> None:
+    module = _load_module("wc_dashboard_bracket_html_tbd")
+    html_out = module._bracket_html(_synthetic_rows(), _synthetic_round_order())
+    assert "&mdash;" in html_out
+    assert "bkt-card--tbd" in html_out
+
+
+def test_bracket_html_scheduled_tie_shows_advance_chip() -> None:
+    module = _load_module("wc_dashboard_bracket_html_advance_chip")
+    html_out = module._bracket_html(_synthetic_rows(), _synthetic_round_order())
+    assert "Brazil 68%" in html_out
+    assert 'bkt-chip bkt-chip--advance">Brazil 68%' in html_out
+
+
+def test_bracket_html_finished_tie_shows_score_chip() -> None:
+    module = _load_module("wc_dashboard_bracket_html_score_chip")
+    html_out = module._bracket_html(_synthetic_rows(), _synthetic_round_order())
+    assert 'bkt-chip bkt-chip--score">2–0' in html_out
+
+
+def test_bracket_html_carries_hover_text_in_title_attribute() -> None:
+    module = _load_module("wc_dashboard_bracket_html_title_attr")
+    html_out = module._bracket_html(_synthetic_rows(), _synthetic_round_order())
+    assert 'title="Round of 32 — final: Argentina 2–0 Nigeria"' in html_out
+    assert "<br>" not in html_out.split("</style>", 1)[1]
+
+
+def test_bracket_html_escapes_hover_text() -> None:
+    module = _load_module("wc_dashboard_bracket_html_escape")
+    rows = _synthetic_rows()
+    rows[1]["hover"] = 'Stage <script>alert("x")</script>'
+    html_out = module._bracket_html(rows, _synthetic_round_order())
+    assert "<script>" not in html_out
+    assert "&lt;script&gt;" in html_out
+
+
+def test_bracket_html_has_one_style_block_scoped_under_bkt() -> None:
+    module = _load_module("wc_dashboard_bracket_html_style_scope")
+    html_out = module._bracket_html(_synthetic_rows(), _synthetic_round_order())
+    assert html_out.count("<style>") == 1
+    assert ".bkt" in html_out
+    assert "overflow-x:auto" in html_out
