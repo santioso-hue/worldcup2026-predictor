@@ -226,6 +226,8 @@ def _synthetic_rows() -> dict[int, dict]:
             "ft_away": None,
             "pen_home": None,
             "pen_away": None,
+            "et_home": None,
+            "et_away": None,
         }
     rows[1] = {
         "home": "Argentina",
@@ -240,6 +242,8 @@ def _synthetic_rows() -> dict[int, dict]:
         "ft_away": 0,
         "pen_home": None,
         "pen_away": None,
+        "et_home": None,
+        "et_away": None,
     }
     rows[2] = {
         "home": "Brazil",
@@ -255,6 +259,8 @@ def _synthetic_rows() -> dict[int, dict]:
         "ft_away": None,
         "pen_home": None,
         "pen_away": None,
+        "et_home": None,
+        "et_away": None,
     }
     rows[3] = {
         "home": "Germany",
@@ -269,6 +275,24 @@ def _synthetic_rows() -> dict[int, dict]:
         "ft_away": 1,
         "pen_home": 3,
         "pen_away": 4,
+        "et_home": 1,
+        "et_away": 1,
+    }
+    rows[4] = {
+        "home": "Belgium",
+        "away": "Senegal",
+        "winner": "Belgium",
+        "annotation": None,
+        "highlight": "Belgium",
+        "hover": "Round of 32 — final: Belgium 3–2 Senegal",
+        "status": "finished",
+        "kickoff": "2026-07-01T19:00:00+00:00",
+        "ft_home": 2,
+        "ft_away": 2,
+        "pen_home": None,
+        "pen_away": None,
+        "et_home": 3,
+        "et_away": 2,
     }
     return rows
 
@@ -276,7 +300,8 @@ def _synthetic_rows() -> dict[int, dict]:
 def test_bracket_html_renders_all_31_cards() -> None:
     module = _load_module("wc_dashboard_bracket_html_count")
     html_out = module._bracket_html(_synthetic_rows(), _synthetic_round_order())
-    assert html_out.count("bkt-card") >= 31 * 2  # class + hover-open tag, at least
+    body = html_out.split("</style>", 1)[1]
+    assert body.count('class="bkt-card') == 31
 
 
 def test_bracket_html_bolds_winner_and_favorite_in_accent_span() -> None:
@@ -409,3 +434,29 @@ def test_score_label_appends_penalties_for_shootout_ties() -> None:
     assert module._score_label(shootout) == "1–1 (3–4 p)"
     regular = {"ft_home": 2, "ft_away": 0}
     assert module._score_label(regular) == "2–0"
+
+
+def test_bracket_html_extra_time_tie_shows_aet_score_and_pill() -> None:
+    # An extra-time win displays the 120' score with an AET pill, not the 90'
+    # draw (Belgium 2-2 Senegal after 90', 3-2 after extra time).
+    module = _load_module("wc_dashboard_bracket_html_aet")
+    html_out = module._bracket_html(_synthetic_rows(), _synthetic_round_order())
+    assert '<span class="bkt-score bkt-score--win">3</span>' in html_out
+    assert 'bkt-pill">AET</span>' in html_out
+
+
+def test_score_label_uses_extra_time_score_when_present() -> None:
+    module = _load_module("wc_dashboard_score_label_et")
+    aet = {"ft_home": 2, "ft_away": 2, "et_home": 3, "et_away": 2}
+    assert module._score_label(aet) == "3–2"
+
+
+def test_bracket_html_final_connectors_are_straight_lines() -> None:
+    # The Final's feeders sit on OPPOSITE sides of its column, so the two-child
+    # elbow shape is wrong there: both Final-adjacent connectors must render as
+    # plain horizontal lines instead.
+    module = _load_module("wc_dashboard_bracket_html_final_line")
+    html_out = module._bracket_html(_synthetic_rows(), _synthetic_round_order())
+    assert html_out.count("bkt-elbow--line") >= 3  # CSS rule + one per side
+    body = html_out.split("</style>", 1)[1]
+    assert body.count("bkt-elbow--line") == 2

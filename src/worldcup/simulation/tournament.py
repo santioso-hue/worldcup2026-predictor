@@ -233,6 +233,8 @@ class ResolvedTie:
     stage: str | None
     pen_home: int | None = None
     pen_away: int | None = None
+    et_home: int | None = None
+    et_away: int | None = None
 
 
 def resolve_bracket(
@@ -364,6 +366,8 @@ def _build_tie(
         fixture.stage,
         fixture.pen_home,
         fixture.pen_away,
+        fixture.et_home,
+        fixture.et_away,
     )
 
 

@@ -215,7 +215,9 @@ def _score_label(tie: dict) -> str:
     winner comes from the penalties, shown as "(3–4 p)". Showing only the
     bundled aggregate would invent scorelines that never happened.
     """
-    score = f"{tie['ft_home']}–{tie['ft_away']}"
+    home = tie["et_home"] if tie.get("et_home") is not None else tie["ft_home"]
+    away = tie["et_away"] if tie.get("et_away") is not None else tie["ft_away"]
+    score = f"{home}–{away}"
     pen_home, pen_away = tie.get("pen_home"), tie.get("pen_away")
     if pen_home is not None and pen_away is not None:
         score += f" ({pen_home}–{pen_away} p)"
@@ -274,6 +276,8 @@ def _bracket_rows(
                 "ft_away": tie["ft_away"],
                 "pen_home": tie.get("pen_home"),
                 "pen_away": tie.get("pen_away"),
+                "et_home": tie.get("et_home"),
+                "et_away": tie.get("et_away"),
             }
         elif status == "scheduled" and home is not None and away is not None:
             host = _host_for(home, away, hosts)
@@ -294,6 +298,8 @@ def _bracket_rows(
                 "ft_away": None,
                 "pen_home": None,
                 "pen_away": None,
+                "et_home": None,
+                "et_away": None,
             }
         else:
             rows[match_id] = {
@@ -309,6 +315,8 @@ def _bracket_rows(
                 "ft_away": None,
                 "pen_home": None,
                 "pen_away": None,
+                "et_home": None,
+                "et_away": None,
             }
     return rows
 
@@ -365,6 +373,8 @@ _BRACKET_CSS = """
   border-right:1px solid #263447;border-bottom:1px solid #263447;}
 .bkt-conn--right .bkt-elbow{border-top:1px solid #263447;
   border-left:1px solid #263447;border-bottom:1px solid #263447;}
+.bkt-conn--left .bkt-elbow--line,.bkt-conn--right .bkt-elbow--line{
+  height:0;border:none;border-top:1px solid #263447;}
 </style>
 """
 
@@ -385,7 +395,12 @@ def _card_header(row: dict) -> str:
         stamp = datetime.fromisoformat(kickoff).astimezone(timezone.utc)
         when = f"{stamp.strftime('%b')} {stamp.day}"
     if row["status"] == "finished":
-        pill = "FT (P)" if row["pen_home"] is not None else "FT"
+        if row["pen_home"] is not None:
+            pill = "FT (P)"
+        elif row["et_home"] is not None:
+            pill = "AET"
+        else:
+            pill = "FT"
     elif row["status"] == "scheduled" and kickoff:
         stamp = datetime.fromisoformat(kickoff).astimezone(timezone.utc)
         pill = f"{stamp.strftime('%H:%M')} UTC"
@@ -413,11 +428,12 @@ def _team_row(row: dict, side: str) -> str:
         )
     winner, highlight = row["winner"], row["highlight"]
     css = "bkt-team bkt-team--win" if team in (winner, highlight) else "bkt-team"
-    ft = row[f"ft_{side}"]
+    et = row[f"et_{side}"]
+    goals = et if et is not None else row[f"ft_{side}"]
     pen = row[f"pen_{side}"]
     score = ""
-    if ft is not None:
-        digits = f"{ft} ({pen})" if pen is not None else str(ft)
+    if goals is not None:
+        digits = f"{goals} ({pen})" if pen is not None else str(goals)
         score_css = "bkt-score bkt-score--win" if team == winner else "bkt-score"
         score = f'<span class="{score_css}">{digits}</span>'
     return (
@@ -475,9 +491,14 @@ def _connector_column_html(
     span between two sibling child centers) and centered within the slot.
     """
     label_div = '<div class="bkt-col-label">&nbsp;</div>'
+    elbow_css = (
+        "bkt-elbow bkt-elbow--line"
+        if parent_size == "final"
+        else f"bkt-elbow bkt-elbow--{child_size}"
+    )
     slot = (
         f'<div class="bkt-conn-slot bkt-conn-slot--{parent_size}">'
-        f'<div class="bkt-elbow bkt-elbow--{child_size}"></div></div>'
+        f'<div class="{elbow_css}"></div></div>'
     )
     slots = slot * count
     return f'<div class="bkt-conn bkt-conn--{side}">{label_div}{slots}</div>'
