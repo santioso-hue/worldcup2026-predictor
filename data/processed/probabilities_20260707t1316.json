@@ -254,249 +254,231 @@
     },
     "86": {
       "away": "Cape Verde",
-      "et_away": null,
-      "et_home": null,
-      "ft_away": null,
-      "ft_home": null,
+      "et_away": 2,
+      "et_home": 3,
+      "ft_away": 1,
+      "ft_home": 1,
       "home": "Argentina",
       "kickoff": "2026-07-03T22:00:00+00:00",
       "pen_away": null,
       "pen_home": null,
       "stage": "Round of 32",
-      "status": "scheduled",
-      "winner": null
+      "status": "finished",
+      "winner": "Argentina"
     },
     "87": {
       "away": "Ghana",
       "et_away": null,
       "et_home": null,
-      "ft_away": null,
-      "ft_home": null,
+      "ft_away": 0,
+      "ft_home": 1,
       "home": "Colombia",
       "kickoff": "2026-07-04T01:30:00+00:00",
       "pen_away": null,
       "pen_home": null,
       "stage": "Round of 32",
-      "status": "scheduled",
-      "winner": null
+      "status": "finished",
+      "winner": "Colombia"
     },
     "88": {
       "away": "Egypt",
-      "et_away": null,
-      "et_home": null,
-      "ft_away": null,
-      "ft_home": null,
+      "et_away": 1,
+      "et_home": 1,
+      "ft_away": 1,
+      "ft_home": 1,
       "home": "Australia",
       "kickoff": "2026-07-03T18:00:00+00:00",
-      "pen_away": null,
-      "pen_home": null,
+      "pen_away": 4,
+      "pen_home": 2,
       "stage": "Round of 32",
-      "status": "scheduled",
-      "winner": null
+      "status": "finished",
+      "winner": "Egypt"
     },
     "89": {
       "away": "France",
       "et_away": null,
       "et_home": null,
-      "ft_away": null,
-      "ft_home": null,
+      "ft_away": 1,
+      "ft_home": 0,
       "home": "Paraguay",
       "kickoff": "2026-07-04T21:00:00+00:00",
       "pen_away": null,
       "pen_home": null,
       "stage": "Round of 16",
-      "status": "scheduled",
-      "winner": null
+      "status": "finished",
+      "winner": "France"
     },
     "90": {
       "away": "Morocco",
       "et_away": null,
       "et_home": null,
-      "ft_away": null,
-      "ft_home": null,
+      "ft_away": 3,
+      "ft_home": 0,
       "home": "Canada",
       "kickoff": "2026-07-04T17:00:00+00:00",
       "pen_away": null,
       "pen_home": null,
       "stage": "Round of 16",
-      "status": "scheduled",
-      "winner": null
+      "status": "finished",
+      "winner": "Morocco"
     },
     "91": {
       "away": "Norway",
       "et_away": null,
       "et_home": null,
-      "ft_away": null,
-      "ft_home": null,
+      "ft_away": 2,
+      "ft_home": 1,
       "home": "Brazil",
       "kickoff": "2026-07-05T20:00:00+00:00",
       "pen_away": null,
       "pen_home": null,
       "stage": "Round of 16",
-      "status": "scheduled",
-      "winner": null
+      "status": "finished",
+      "winner": "Norway"
     },
     "92": {
       "away": "England",
       "et_away": null,
       "et_home": null,
-      "ft_away": null,
-      "ft_home": null,
+      "ft_away": 3,
+      "ft_home": 2,
       "home": "Mexico",
-      "kickoff": "2026-07-06T00:00:00+00:00",
+      "kickoff": "2026-07-06T01:00:00+00:00",
       "pen_away": null,
       "pen_home": null,
       "stage": "Round of 16",
-      "status": "scheduled",
-      "winner": null
+      "status": "finished",
+      "winner": "England"
     },
     "93": {
       "away": "Spain",
       "et_away": null,
       "et_home": null,
-      "ft_away": null,
-      "ft_home": null,
+      "ft_away": 1,
+      "ft_home": 0,
       "home": "Portugal",
-      "kickoff": null,
+      "kickoff": "2026-07-06T19:00:00+00:00",
       "pen_away": null,
       "pen_home": null,
       "stage": "Round of 16",
-      "status": "scheduled",
-      "winner": null
+      "status": "finished",
+      "winner": "Spain"
     },
     "94": {
       "away": "Belgium",
       "et_away": null,
       "et_home": null,
-      "ft_away": null,
-      "ft_home": null,
+      "ft_away": 4,
+      "ft_home": 1,
       "home": "United States",
       "kickoff": "2026-07-07T00:00:00+00:00",
+      "pen_away": null,
+      "pen_home": null,
+      "stage": "Round of 16",
+      "status": "finished",
+      "winner": "Belgium"
+    },
+    "95": {
+      "away": "Egypt",
+      "et_away": null,
+      "et_home": null,
+      "ft_away": null,
+      "ft_home": null,
+      "home": "Argentina",
+      "kickoff": "2026-07-07T16:00:00+00:00",
       "pen_away": null,
       "pen_home": null,
       "stage": "Round of 16",
       "status": "scheduled",
       "winner": null
     },
-    "95": {
-      "away": null,
-      "et_away": null,
-      "et_home": null,
-      "ft_away": null,
-      "ft_home": null,
-      "home": null,
-      "kickoff": null,
-      "pen_away": null,
-      "pen_home": null,
-      "stage": "Round of 16",
-      "status": "tbd",
-      "winner": null
-    },
     "96": {
-      "away": null,
+      "away": "Colombia",
       "et_away": null,
       "et_home": null,
       "ft_away": null,
       "ft_home": null,
-      "home": null,
-      "kickoff": null,
+      "home": "Switzerland",
+      "kickoff": "2026-07-07T20:00:00+00:00",
       "pen_away": null,
       "pen_home": null,
       "stage": "Round of 16",
-      "status": "tbd",
+      "status": "scheduled",
       "winner": null
     },
     "97": {
-      "away": null,
+      "away": "Morocco",
       "et_away": null,
       "et_home": null,
       "ft_away": null,
       "ft_home": null,
-      "home": null,
-      "kickoff": null,
+      "home": "France",
+      "kickoff": "2026-07-09T20:00:00+00:00",
       "pen_away": null,
       "pen_home": null,
       "stage": "Quarter-finals",
-      "status": "tbd",
+      "status": "scheduled",
       "winner": null
     },
     "98": {
-      "away": null,
+      "away": "Belgium",
       "et_away": null,
       "et_home": null,
       "ft_away": null,
       "ft_home": null,
-      "home": null,
-      "kickoff": null,
+      "home": "Spain",
+      "kickoff": "2026-07-10T19:00:00+00:00",
       "pen_away": null,
       "pen_home": null,
       "stage": "Quarter-finals",
-      "status": "tbd",
+      "status": "scheduled",
       "winner": null
     },
     "99": {
-      "away": null,
+      "away": "England",
       "et_away": null,
       "et_home": null,
       "ft_away": null,
       "ft_home": null,
-      "home": null,
-      "kickoff": null,
+      "home": "Norway",
+      "kickoff": "2026-07-11T21:00:00+00:00",
       "pen_away": null,
       "pen_home": null,
       "stage": "Quarter-finals",
-      "status": "tbd",
+      "status": "scheduled",
       "winner": null
     }
   },
   "fixtures": [
     {
       "away": "Egypt",
-      "home": "Australia",
-      "kickoff": "2026-07-03T18:00:00+00:00",
-      "stage": "Round of 32"
-    },
-    {
-      "away": "Cape Verde",
       "home": "Argentina",
-      "kickoff": "2026-07-03T22:00:00+00:00",
-      "stage": "Round of 32"
+      "kickoff": "2026-07-07T16:00:00+00:00",
+      "stage": "Round of 16"
     },
     {
-      "away": "Ghana",
-      "home": "Colombia",
-      "kickoff": "2026-07-04T01:30:00+00:00",
-      "stage": "Round of 32"
+      "away": "Colombia",
+      "home": "Switzerland",
+      "kickoff": "2026-07-07T20:00:00+00:00",
+      "stage": "Round of 16"
     },
     {
       "away": "Morocco",
-      "home": "Canada",
-      "kickoff": "2026-07-04T17:00:00+00:00",
-      "stage": "Round of 16"
-    },
-    {
-      "away": "France",
-      "home": "Paraguay",
-      "kickoff": "2026-07-04T21:00:00+00:00",
-      "stage": "Round of 16"
-    },
-    {
-      "away": "Norway",
-      "home": "Brazil",
-      "kickoff": "2026-07-05T20:00:00+00:00",
-      "stage": "Round of 16"
-    },
-    {
-      "away": "England",
-      "home": "Mexico",
-      "kickoff": "2026-07-06T00:00:00+00:00",
-      "stage": "Round of 16"
+      "home": "France",
+      "kickoff": "2026-07-09T20:00:00+00:00",
+      "stage": "Quarter-finals"
     },
     {
       "away": "Belgium",
-      "home": "United States",
-      "kickoff": "2026-07-07T00:00:00+00:00",
-      "stage": "Round of 16"
+      "home": "Spain",
+      "kickoff": "2026-07-10T19:00:00+00:00",
+      "stage": "Quarter-finals"
+    },
+    {
+      "away": "England",
+      "home": "Norway",
+      "kickoff": "2026-07-11T21:00:00+00:00",
+      "stage": "Quarter-finals"
     }
   ],
   "groups": {
@@ -584,19 +566,19 @@
     },
     "Argentina": {
       "advance": 1.0,
-      "champion": 0.17384,
-      "final": 0.32246,
-      "quarter_finals": 0.77342,
-      "round_of_16": 0.9548,
-      "semi_finals": 0.53188
+      "champion": 0.1644,
+      "final": 0.32398,
+      "quarter_finals": 0.8094,
+      "round_of_16": 1.0,
+      "semi_finals": 0.55496
     },
     "Australia": {
       "advance": 1.0,
-      "champion": 0.00204,
-      "final": 0.00822,
-      "quarter_finals": 0.09058,
-      "round_of_16": 0.45812,
-      "semi_finals": 0.03096
+      "champion": 0.0,
+      "final": 0.0,
+      "quarter_finals": 0.0,
+      "round_of_16": 0.0,
+      "semi_finals": 0.0
     },
     "Austria": {
       "advance": 1.0,
@@ -608,11 +590,11 @@
     },
     "Belgium": {
       "advance": 1.0,
-      "champion": 0.01886,
-      "final": 0.05718,
-      "quarter_finals": 0.58064,
+      "champion": 0.05246,
+      "final": 0.12058,
+      "quarter_finals": 1.0,
       "round_of_16": 1.0,
-      "semi_finals": 0.184
+      "semi_finals": 0.32968
     },
     "Bosnia and Herzegovina": {
       "advance": 1.0,
@@ -624,35 +606,35 @@
     },
     "Brazil": {
       "advance": 1.0,
-      "champion": 0.0683,
-      "final": 0.15234,
-      "quarter_finals": 0.62502,
+      "champion": 0.0,
+      "final": 0.0,
+      "quarter_finals": 0.0,
       "round_of_16": 1.0,
-      "semi_finals": 0.30392
+      "semi_finals": 0.0
     },
     "Canada": {
       "advance": 1.0,
-      "champion": 0.00334,
-      "final": 0.01422,
-      "quarter_finals": 0.26298,
+      "champion": 0.0,
+      "final": 0.0,
+      "quarter_finals": 0.0,
       "round_of_16": 1.0,
-      "semi_finals": 0.05264
+      "semi_finals": 0.0
     },
     "Cape Verde": {
       "advance": 1.0,
-      "champion": 2e-05,
-      "final": 0.00022,
-      "quarter_finals": 0.01102,
-      "round_of_16": 0.0452,
-      "semi_finals": 0.0015
+      "champion": 0.0,
+      "final": 0.0,
+      "quarter_finals": 0.0,
+      "round_of_16": 0.0,
+      "semi_finals": 0.0
     },
     "Colombia": {
       "advance": 1.0,
-      "champion": 0.02896,
-      "final": 0.07704,
-      "quarter_finals": 0.44328,
-      "round_of_16": 0.86666,
-      "semi_finals": 0.1777
+      "champion": 0.02956,
+      "final": 0.0895,
+      "quarter_finals": 0.53432,
+      "round_of_16": 1.0,
+      "semi_finals": 0.21318
     },
     "Croatia": {
       "advance": 1.0,
@@ -696,27 +678,27 @@
     },
     "Egypt": {
       "advance": 1.0,
-      "champion": 0.00306,
-      "final": 0.01288,
-      "quarter_finals": 0.12498,
-      "round_of_16": 0.54188,
-      "semi_finals": 0.04608
+      "champion": 0.00322,
+      "final": 0.01756,
+      "quarter_finals": 0.1906,
+      "round_of_16": 1.0,
+      "semi_finals": 0.06568
     },
     "England": {
       "advance": 1.0,
-      "champion": 0.05062,
-      "final": 0.1193,
-      "quarter_finals": 0.45308,
+      "champion": 0.15552,
+      "final": 0.3376,
+      "quarter_finals": 1.0,
       "round_of_16": 1.0,
-      "semi_finals": 0.24106
+      "semi_finals": 0.61196
     },
     "France": {
       "advance": 1.0,
-      "champion": 0.2471,
-      "final": 0.40012,
-      "quarter_finals": 0.89936,
+      "champion": 0.20456,
+      "final": 0.3374,
+      "quarter_finals": 1.0,
       "round_of_16": 1.0,
-      "semi_finals": 0.6275
+      "semi_finals": 0.60872
     },
     "Germany": {
       "advance": 1.0,
@@ -729,10 +711,10 @@
     "Ghana": {
       "advance": 1.0,
       "champion": 0.0,
-      "final": 0.00018,
-      "quarter_finals": 0.01974,
-      "round_of_16": 0.13334,
-      "semi_finals": 0.00172
+      "final": 0.0,
+      "quarter_finals": 0.0,
+      "round_of_16": 0.0,
+      "semi_finals": 0.0
     },
     "Haiti": {
       "advance": 0.0,
@@ -784,19 +766,19 @@
     },
     "Mexico": {
       "advance": 1.0,
-      "champion": 0.08394,
-      "final": 0.17194,
-      "quarter_finals": 0.54692,
+      "champion": 0.0,
+      "final": 0.0,
+      "quarter_finals": 0.0,
       "round_of_16": 1.0,
-      "semi_finals": 0.319
+      "semi_finals": 0.0
     },
     "Morocco": {
       "advance": 1.0,
-      "champion": 0.0687,
-      "final": 0.14642,
-      "quarter_finals": 0.73702,
+      "champion": 0.08704,
+      "final": 0.17448,
+      "quarter_finals": 1.0,
       "round_of_16": 1.0,
-      "semi_finals": 0.29482
+      "semi_finals": 0.39128
     },
     "Netherlands": {
       "advance": 1.0,
@@ -816,11 +798,11 @@
     },
     "Norway": {
       "advance": 1.0,
-      "champion": 0.01746,
-      "final": 0.05222,
-      "quarter_finals": 0.37498,
+      "champion": 0.06118,
+      "final": 0.16976,
+      "quarter_finals": 1.0,
       "round_of_16": 1.0,
-      "semi_finals": 0.13602
+      "semi_finals": 0.38804
     },
     "Panama": {
       "advance": 0.0,
@@ -832,19 +814,19 @@
     },
     "Paraguay": {
       "advance": 1.0,
-      "champion": 0.00094,
-      "final": 0.00498,
-      "quarter_finals": 0.10064,
+      "champion": 0.0,
+      "final": 0.0,
+      "quarter_finals": 0.0,
       "round_of_16": 1.0,
-      "semi_finals": 0.02504
+      "semi_finals": 0.0
     },
     "Portugal": {
       "advance": 1.0,
-      "champion": 0.02814,
-      "final": 0.06896,
-      "quarter_finals": 0.31726,
+      "champion": 0.0,
+      "final": 0.0,
+      "quarter_finals": 0.0,
       "round_of_16": 1.0,
-      "semi_finals": 0.18934
+      "semi_finals": 0.0
     },
     "Qatar": {
       "advance": 0.0,
@@ -896,11 +878,11 @@
     },
     "Spain": {
       "advance": 1.0,
-      "champion": 0.1681,
-      "final": 0.28302,
-      "quarter_finals": 0.68274,
+      "champion": 0.22326,
+      "final": 0.36754,
+      "quarter_finals": 1.0,
       "round_of_16": 1.0,
-      "semi_finals": 0.52154
+      "semi_finals": 0.67032
     },
     "Sweden": {
       "advance": 1.0,
@@ -912,11 +894,11 @@
     },
     "Switzerland": {
       "advance": 1.0,
-      "champion": 0.02934,
-      "final": 0.0832,
-      "quarter_finals": 0.53698,
+      "champion": 0.0188,
+      "final": 0.0616,
+      "quarter_finals": 0.46568,
       "round_of_16": 1.0,
-      "semi_finals": 0.21016
+      "semi_finals": 0.16618
     },
     "Tunisia": {
       "advance": 0.0,
@@ -936,11 +918,11 @@
     },
     "United States": {
       "advance": 1.0,
-      "champion": 0.00724,
-      "final": 0.0251,
-      "quarter_finals": 0.41936,
+      "champion": 0.0,
+      "final": 0.0,
+      "quarter_finals": 0.0,
       "round_of_16": 1.0,
-      "semi_finals": 0.10512
+      "semi_finals": 0.0
     },
     "Uruguay": {
       "advance": 0.0,
@@ -959,5 +941,5 @@
       "semi_finals": 0.0
     }
   },
-  "timestamp": "20260703t0949"
+  "timestamp": "20260707t1316"
 }
