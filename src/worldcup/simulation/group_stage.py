@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from itertools import groupby
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,13 +75,7 @@ def _require_elo(teams: list[str], elo_ratings: dict[str, float]) -> None:
 def _bucket(items: list[str], key: Callable[[str], object]) -> list[list[str]]:
     """Sort descending by ``key`` and group items sharing the same key."""
     ordered = sorted(items, key=key, reverse=True)  # type: ignore[arg-type]
-    buckets: list[list[str]] = []
-    for it in ordered:
-        if buckets and key(buckets[-1][0]) == key(it):
-            buckets[-1].append(it)
-        else:
-            buckets.append([it])
-    return buckets
+    return [list(group) for _, group in groupby(ordered, key=key)]
 
 
 def standings(

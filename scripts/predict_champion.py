@@ -38,7 +38,9 @@ def main(top: int = 10, team: str | None = None) -> None:
         )
     ts, probs = run.timestamp, run.probabilities
     ranking = sorted(
-        ((name, p["champion"]) for name, p in probs.items()), key=lambda x: -x[1]
+        ((name, p["champion"]) for name, p in probs.items()),
+        key=lambda x: x[1],
+        reverse=True,
     )
     width = max((len(n) for n, _ in ranking[:top]), default=0)
     typer.secho(f"P(champion) — updated {ts}", bold=True)
@@ -48,8 +50,15 @@ def main(top: int = 10, team: str | None = None) -> None:
         typer.secho(line, fg=typer.colors.GREEN if hit else None, bold=hit)
 
     if team is not None:
-        match = next((r for r in ranking if r[0].lower() == team.lower()), None)
-        if match is None:
+        found = next(
+            (
+                (rank, name, p)
+                for rank, (name, p) in enumerate(ranking, 1)
+                if name.lower() == team.lower()
+            ),
+            None,
+        )
+        if found is None:
             typer.secho(
                 f"\n'{team}' isn't in the latest run (check the name, e.g. "
                 "'United States', not 'USA').",
@@ -57,10 +66,9 @@ def main(top: int = 10, team: str | None = None) -> None:
                 fg=typer.colors.YELLOW,
             )
             raise typer.Exit(code=1)
-        rank = [n for n, _ in ranking].index(match[0]) + 1
+        rank, name, p = found
         typer.secho(
-            f"\n{match[0]}: P(champion) = {match[1]:.2%}  ·  rank #{rank} "
-            f"of {len(ranking)}",
+            f"\n{name}: P(champion) = {p:.2%}  ·  rank #{rank} of {len(ranking)}",
             fg=typer.colors.GREEN,
             bold=True,
         )

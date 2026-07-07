@@ -21,7 +21,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import typer  # noqa: E402
 
 from worldcup.config import load_config  # noqa: E402
-from worldcup.data.historical import fetch_martj42, parse_results_csv  # noqa: E402
+from worldcup.data.historical import (  # noqa: E402
+    fetch_martj42,
+    parse_results_csv,
+    teams_from_history,
+)
 from worldcup.pipeline import predict_match  # noqa: E402
 
 
@@ -35,7 +39,7 @@ def main(
     dest = cfg.paths.data_raw / "results.csv"
     fetch_martj42(cfg.data.historical.results_url, dest)  # idempotent
     history = parse_results_csv(dest.read_text())
-    known = {m.home_team for m in history} | {m.away_team for m in history}
+    known = teams_from_history(history)
     for label, team in (("home", home), ("away", away)):
         if team not in known:
             typer.secho(

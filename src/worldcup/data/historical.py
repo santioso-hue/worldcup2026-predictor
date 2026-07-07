@@ -60,6 +60,11 @@ def parse_results_csv(text: str) -> list[HistoricalMatch]:
     return matches
 
 
+def teams_from_history(history: list[HistoricalMatch]) -> set[str]:
+    """Every team that appears in the history, home or away."""
+    return {m.home_team for m in history} | {m.away_team for m in history}
+
+
 def fetch_martj42(
     url: str, dest: Path | str, *, timeout: float = 60.0, force: bool = False
 ) -> Path:

@@ -17,6 +17,7 @@ import os
 import subprocess
 import sys
 from datetime import date, datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -27,7 +28,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import streamlit as st  # noqa: E402
 
 from worldcup.config import Config, load_config  # noqa: E402
-from worldcup.data.historical import fetch_martj42, parse_results_csv  # noqa: E402
+from worldcup.data.download import TIMESTAMP_FORMAT  # noqa: E402
+from worldcup.data.historical import (  # noqa: E402
+    fetch_martj42,
+    parse_results_csv,
+    teams_from_history,
+)
 from worldcup.features.elo import fit_elo  # noqa: E402
 from worldcup.pipeline import (  # noqa: E402
     RunArtifact,
@@ -54,6 +60,12 @@ def _kickoff_et(kickoff: str) -> datetime:
     return datetime.fromisoformat(kickoff).astimezone(_EASTERN)
 
 
+def _fmt_date_short(stamp: datetime) -> str:
+    """ "Jul 3"-style date (no zero-padded day; %-d is platform-dependent)."""
+    return f"{stamp.strftime('%b')} {stamp.day}"
+
+
+@lru_cache(maxsize=1)
 def _config() -> Config:
     return load_config(_ROOT / "config" / "config.yaml")
 
@@ -70,7 +82,7 @@ def _ensure_history(results_csv: str) -> str:
 def _known_teams(results_csv: str) -> set[str]:
     """Teams present in the historical data (to detect fixtures not yet defined)."""
     history = parse_results_csv(Path(results_csv).read_text())
-    return {m.home_team for m in history} | {m.away_team for m in history}
+    return teams_from_history(history)
 
 
 @st.cache_data(show_spinner=False)
@@ -131,9 +143,7 @@ def _state_strip_stats(
     ]
     if kickoffs:
         first = _kickoff_et(min(kickoffs))
-        next_kickoff = (
-            f"{first.strftime('%b')} {first.day}, {first.strftime('%H:%M')} ET"
-        )
+        next_kickoff = f"{_fmt_date_short(first)}, {first.strftime('%H:%M')} ET"
     else:
         next_kickoff = "—"
     return {
@@ -153,11 +163,11 @@ def _fmt_updated(ts: str) -> str:
     never crash the page.
     """
     try:
-        stamped = datetime.strptime(ts, "%Y%m%dt%H%M")
+        stamped = datetime.strptime(ts, TIMESTAMP_FORMAT)
     except ValueError:
         return ts
     local = stamped.replace(tzinfo=timezone.utc).astimezone(_EASTERN)
-    return f"{local.strftime('%b')} {local.day}, {local.strftime('%H:%M')} ET"
+    return f"{_fmt_date_short(local)}, {local.strftime('%H:%M')} ET"
 
 
 def _fmt_prob(p: float) -> str:
@@ -220,6 +230,12 @@ def _bracket_round_order() -> list[list[int]]:
     return [rounds_by_depth[d] for d in sorted(rounds_by_depth, reverse=True)]
 
 
+def _shown_goals(tie: dict, side: str) -> int | None:
+    """Displayed goals for one side: the 120' score when extra time was played."""
+    et = tie.get(f"et_{side}")
+    return et if et is not None else tie.get(f"ft_{side}")
+
+
 def _score_label(tie: dict) -> str:
     """Display score for a decided tie; shootouts append the penalty score.
 
@@ -227,8 +243,8 @@ def _score_label(tie: dict) -> str:
     winner comes from the penalties, shown as "(3–4 p)". Showing only the
     bundled aggregate would invent scorelines that never happened.
     """
-    home = tie["et_home"] if tie.get("et_home") is not None else tie["ft_home"]
-    away = tie["et_away"] if tie.get("et_away") is not None else tie["ft_away"]
+    home = _shown_goals(tie, "home")
+    away = _shown_goals(tie, "away")
     score = f"{home}–{away}"
     pen_home, pen_away = tie.get("pen_home"), tie.get("pen_away")
     if pen_home is not None and pen_away is not None:
@@ -246,11 +262,7 @@ def _scheduled_hover(tie: dict, card: dict[str, float], label: str) -> str:
     """Hover text for an undecided tie: stage, kickoff date, 1X2, advance label."""
     stage, home, away = tie["stage"], tie["home"], tie["away"]
     kickoff = tie["kickoff"]
-    if kickoff:
-        stamp = _kickoff_et(kickoff)
-        when = f"{stamp.strftime('%b')} {stamp.day}"
-    else:
-        when = "date TBD"
+    when = _fmt_date_short(_kickoff_et(kickoff)) if kickoff else "date TBD"
     return (
         f"{stage} — {when}<br>"
         f"{home} {card['home']:.0%} · draw {card['draw']:.0%} · "
@@ -420,11 +432,8 @@ _ROUND_LABELS = [
 
 def _card_header(row: dict) -> str:
     """Date on the left, status pill on the right (FT / FT (P) / kickoff time)."""
-    kickoff = row["kickoff"]
-    when = ""
-    if kickoff:
-        stamp = _kickoff_et(kickoff)
-        when = f"{stamp.strftime('%b')} {stamp.day}"
+    stamp = _kickoff_et(row["kickoff"]) if row["kickoff"] else None
+    when = _fmt_date_short(stamp) if stamp else ""
     if row["status"] == "finished":
         if row["pen_home"] is not None:
             pill = "FT (P)"
@@ -435,11 +444,7 @@ def _card_header(row: dict) -> str:
     elif row["status"] == "scheduled":
         # The resolver can pair a tie before the feed publishes its kickoff
         # (it derives teams from the finished feeders); keep the header strip.
-        if kickoff:
-            stamp = _kickoff_et(kickoff)
-            pill = f"{stamp.strftime('%H:%M')} ET"
-        else:
-            pill = "TBD"
+        pill = f"{stamp.strftime('%H:%M')} ET" if stamp else "TBD"
     else:
         pill = ""
     if not when and not pill:
@@ -464,8 +469,7 @@ def _team_row(row: dict, side: str) -> str:
         )
     winner, highlight = row["winner"], row["highlight"]
     css = "bkt-team bkt-team--win" if team in (winner, highlight) else "bkt-team"
-    et = row[f"et_{side}"]
-    goals = et if et is not None else row[f"ft_{side}"]
+    goals = _shown_goals(row, side)
     pen = row[f"pen_{side}"]
     score = ""
     if goals is not None:
