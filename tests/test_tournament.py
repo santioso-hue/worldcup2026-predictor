@@ -11,9 +11,12 @@ import pytest
 
 from worldcup.config import load_config
 from worldcup.data.live_results import MatchStatus, NormalizedMatch
+from worldcup.models.base import CachedMatchModel
 from worldcup.models.dixon_coles import DixonColesModel
+from worldcup.rng import get_rng
 from worldcup.simulation.bracket import load_annex_c
 from worldcup.simulation.group_stage import PlayedMatch
+from worldcup.simulation.match import simulate_match
 from worldcup.simulation.state import TournamentState
 from worldcup.simulation.tournament import (
     _net_host_advantage,
@@ -248,6 +251,34 @@ def test_resolve_bracket_unknown_team_is_tbd() -> None:
     assert tie.winner is None
     assert tie.ft_home is None and tie.ft_away is None
     assert tie.stage == "Round of 16"
+
+
+def test_cached_model_gives_identical_match_results() -> None:
+    # run_tournament wraps its model in CachedMatchModel; the wrap must be
+    # invisible. score_matrix consumes no RNG, so a cached matrix must yield
+    # bit-identical simulations across matchups, seeds, and the ET/pens path.
+    cached = CachedMatchModel(MODEL)
+    matchups = [
+        (1600.0, 1500.0, 0.0),
+        (1500.0, 1500.0, CFG.elo.host_advantage),
+        (1400.0, 1650.0, -CFG.elo.host_advantage),
+    ]
+    for seed in range(5):
+        for rating_home, rating_away, advantage in matchups:
+            results = [
+                simulate_match(
+                    model,
+                    "A",
+                    "B",
+                    rating_home,
+                    rating_away,
+                    get_rng(seed),
+                    home_advantage=advantage,
+                    knockout=True,
+                )
+                for model in (MODEL, cached)
+            ]
+            assert results[0] == results[1]
 
 
 def test_resolve_bracket_no_simulate_match_import() -> None:

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from worldcup.models.base import (
+    CachedMatchModel,
     MatchModel,
     MatchOutcome,
     outcome_probabilities,
@@ -37,6 +39,29 @@ def test_sample_scoreline_picks_the_only_nonzero_cell() -> None:
     m = np.zeros((3, 3))
     m[2, 1] = 1.0  # all mass on home=2, away=1
     assert sample_scoreline(m, get_rng(7)) == (2, 1)
+
+
+def test_cached_model_memoizes_per_key_and_freezes_the_matrix() -> None:
+    class _Counting(MatchModel):
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def score_matrix(
+            self, rating_home: float, rating_away: float, home_advantage: float = 0.0
+        ) -> np.ndarray:
+            self.calls += 1
+            return np.full((3, 3), 1 / 9)
+
+    inner = _Counting()
+    cached = CachedMatchModel(inner)
+    first = cached.score_matrix(1500.0, 1400.0, 50.0)
+    again = cached.score_matrix(1500.0, 1400.0, 50.0)
+    assert again is first  # same key -> one computation, same array
+    assert inner.calls == 1
+    cached.score_matrix(1500.0, 1400.0, 0.0)  # the advantage is part of the key
+    assert inner.calls == 2
+    with pytest.raises(ValueError):
+        first[0, 0] = 0.5  # cached matrices are frozen against in-place edits
 
 
 def test_outcome_proba_default_derives_from_score_matrix() -> None:

@@ -21,7 +21,7 @@ from .data.historical import HistoricalMatch
 from .data.live_results import NormalizedMatch
 from .data.schedule import group_teams, remaining_fixtures
 from .features.elo import fit_elo
-from .models.base import MatchOutcome, outcome_probabilities
+from .models.base import CachedMatchModel, MatchOutcome, outcome_probabilities
 from .models.dixon_coles import DixonColesModel
 from .rng import DEFAULT_SEED, get_rng
 from .simulation.match import simulate_match
@@ -194,7 +194,8 @@ def knockout_advance_probability(
         advantage = -config.elo.host_advantage
     else:
         advantage = 0.0
-    model = DixonColesModel(config.elo, config.dixon_coles)
+    # All `runs` samples share one matchup; cache the matrix across them.
+    model = CachedMatchModel(DixonColesModel(config.elo, config.dixon_coles))
     rng = get_rng(seed)
     wins = sum(
         simulate_match(

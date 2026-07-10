@@ -69,3 +69,32 @@ class MatchModel(ABC):
         return outcome_probabilities(
             self.score_matrix(rating_home, rating_away, home_advantage)
         )
+
+
+class CachedMatchModel(MatchModel):
+    """Memoize ``score_matrix`` per ``(rating_home, rating_away, home_advantage)``.
+
+    The Monte Carlo replays the same matchups tens of thousands of times and
+    the matrix is deterministic in its inputs, so one computation per distinct
+    pairing serves every run. Meant for the fixed-ratings simulation paths;
+    the backtest refits ratings continuously, where a cache would only grow.
+
+    Cached matrices are frozen (read-only): callers share the same array, so
+    an in-place edit would silently corrupt every later use of that matchup —
+    freezing turns that into an immediate error instead.
+    """
+
+    def __init__(self, model: MatchModel) -> None:
+        self._model = model
+        self._cache: dict[tuple[float, float, float], np.ndarray] = {}
+
+    def score_matrix(
+        self, rating_home: float, rating_away: float, home_advantage: float = 0.0
+    ) -> np.ndarray:
+        key = (rating_home, rating_away, home_advantage)
+        matrix = self._cache.get(key)
+        if matrix is None:
+            matrix = self._model.score_matrix(rating_home, rating_away, home_advantage)
+            matrix.setflags(write=False)
+            self._cache[key] = matrix
+        return matrix

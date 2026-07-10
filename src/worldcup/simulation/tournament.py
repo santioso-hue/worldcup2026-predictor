@@ -11,8 +11,9 @@ the snapshot (locks) + seed.
 in their simulated matches, via ``host_advantage`` (``team -> bonus`` map); in
 a given matchup the bonus is net (home host minus away host), so two hosts
 playing each other is neutral.
-*Performance:* no matrix caching (correctness first); for 50k runs it'd be
-worth caching ``score_matrix`` per matchup (future work).
+*Performance:* ``run_tournament`` wraps the model in
+:class:`~worldcup.models.base.CachedMatchModel`, so each distinct matchup's
+score matrix is computed once and reused across all runs.
 """
 
 from __future__ import annotations
@@ -25,7 +26,7 @@ import numpy as np
 
 from ..data.live_results import NormalizedMatch
 from ..data.schedule import is_knockout_stage
-from ..models.base import MatchModel
+from ..models.base import CachedMatchModel, MatchModel
 from ..rng import spawn_rngs
 from .bracket import KNOCKOUT_BRACKET, assign_best_thirds
 from .group_stage import PlayedMatch, TeamStanding, rank_thirds, standings
@@ -398,6 +399,9 @@ def run_tournament(
     locked_knockout = locked_knockout or {}
     host_advantage = host_advantage or {}
     counts = {t: dict.fromkeys(ROUNDS, 0) for t in ratings}
+    # One matrix per distinct matchup serves all `runs` (score_matrix is
+    # deterministic; only the scoreline sampling consumes RNG).
+    model = CachedMatchModel(model)
 
     for run_rng in spawn_rngs(seed, runs):
         reached = _simulate_once(
