@@ -5,14 +5,10 @@ name: refresh
 # -> figures + probabilities JSON, published as artifacts (outputs are regenerable
 # and not version-controlled: see .gitignore).
 
+# Manual-only since the tournament ended; during it, this ran on a 30-minute
+# cron. Trigger by hand to regenerate figures from the current data.
 on:
   workflow_dispatch: {}
-  schedule:
-    # Every 30 min. Only makes sense during the tournament (Jun-Jul 2026); outside
-    # that window, disable the workflow or space the cron out to save API budget.
-    # The provider only supports polling, not push; tighten the cron on match days
-    # (or switch to the provider's webhook for instant refresh if they add one).
-    - cron: "*/30 * * * *"
 
 # Don't overlap runs: if one is still going when the next triggers, it waits.
 concurrency:

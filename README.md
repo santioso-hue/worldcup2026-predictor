@@ -1,10 +1,11 @@
 # worldcup2026-predictor
 
 Win probabilities for the 2026 World Cup (48 teams, 12 groups), recomputed from real
-results as the tournament plays out. Elo ratings fitted on the full history of
+results as the tournament played out. Elo ratings fitted on the full history of
 international matches set team strengths, a Dixon-Coles model turns those into goal
 distributions, and a Monte Carlo simulation plays out whatever is left of the
-tournament. Every finished match feeds back in.
+tournament. The model ran live from the group stage to the final; the dashboard now
+shows the finished tournament.
 
 ## Getting started
 
@@ -41,10 +42,10 @@ make lint                         # ruff + black --check + mypy
 make fmt                          # black + ruff --fix
 ```
 
-For something steadier than `--watch`, the
-[`.github/workflows/refresh.yml`](.github/workflows/refresh.yml) workflow runs the
-pipeline on a fixed schedule via GitHub Actions and uploads the figures and JSON as
-artifacts.
+During the tournament, the
+[`.github/workflows/refresh.yml`](.github/workflows/refresh.yml) workflow ran the
+pipeline every 30 minutes via GitHub Actions and uploaded the figures and JSON as
+artifacts; it is manual-dispatch only now.
 
 ## Output
 
